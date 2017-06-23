@@ -1,0 +1,444 @@
+---
+title: "MetFileGraphs"
+output: html_document
+---
+
+## Average per pixel
+
+- Requires MileFileSummary.R to be run first
+- Requires MileFileReadAll.Rmd to be run first
+- sort out units
+- graph averages
+- Derived from original at:C:\apsim_dev\Projects\CCII\RA2_CaseStudy\source\MetFileGraphs(RA2).Rmd
+
+```{r}
+#devtools::install_github("dkahle/ggmap")
+#devtools::install_github("hadley/ggplot2")
+library(tcltk2)
+library(dplyr)
+library(data.table)
+library(raster)
+library(ggplot2)
+library(maptools) # for shapefiles
+library(ggmap)
+```
+
+Read data
+```{r}
+
+folderName <- "C:\\apsim_dev\\Projects\\CCII\\RA2_CaseStudy\\metFiles\\"
+fileName <- "All_Met_Data.csv"
+
+DATA <- read.csv(paste0(folderName,fileName))
+summary(DATA)
+
+```
+
+# Data clean up
+```{r SummaryAll, echo=FALSE,echo=FALSE, fig.height=18,fig.width=12}
+
+# FIXME: this will have to deal with more RCPs in teh future
+
+# average across grid-cells
+av.per.pixel <- DATA %>%
+ # mutate(rcpStp = as.factor("RCP85")) %>% # FIXME: quick fix to get same RCP name
+#  mutate(rcpStp = as.factor(ifelse(gcmStp == "ERA", "ERA","RCP85"))) %>%
+  mutate(timeSlice = as.factor(paste0("ts_",timeSlice))) %>% # avoid start of factor name with number
+  group_by(row, col, gcmStp, rcpStp, timeSlice) %>% 
+  summarise_each(funs(mean)) %>%
+  dplyr::select(-X, -X.1,-skip,-fileNo, -year, -day) %>% # must remove otherwise
+  mutate(rain = rain*365, radn = radn*365) %>% # change to annual values
+  tidyr::gather("Variable", "VarValue", maxt:co2) %>%
+  mutate(Variable = as.factor(Variable)) %>%
+  mutate(VariableName = factor(Variable))%>%
+  mutate(Variable = factor(Variable,levels= c("co2","mint","maxt","rain","radn"), 
+                           labels=c("co2","Minimum temperature (oC)",
+                                   "Maximum temperature (oC)", 
+                                    "Rainfall (mm/year)",
+                                   "Solar radiation (MJ/m2/year)" 
+                                  ))) %>%
+  mutate(timeSliceName = factor(timeSlice)) %>%
+  mutate(timeSlice = factor(timeSlice,levels = c("ts_a_base","ts_b_midCentury","ts_c_endCentury"), 
+                            labels=c("Baseline", "Mid-century", "End-century")))
+
+#head(av.per.pixel)
+
+summary(av.per.pixel)
+
+
+```
+
+## Check averages
+
+- average of all pixels
+- average of all GCMs
+
+```{r}
+# save for analysis
+write.csv(av.per.pixel, file = paste0(folderName,"AvsPerPixel.csv"))
+
+# find averages to plot as ref
+avs1 <- av.per.pixel %>% 
+  dplyr::filter(Variable !="co2") %>%
+  group_by(timeSlice,rcpStp,Variable) %>% 
+  summarise(mean=mean(VarValue)) 
+
+avs1 %>%
+  tidyr::spread(timeSlice,mean)
+```
+
+
+## Graph
+
+```{r, fig.height=20, fig.width=12}
+# graph averages
+av.per.pixel  %>%
+#  filter(rcpStp == "RCP85") %>%
+  dplyr::filter(Variable !="co2") %>%
+  ggplot(aes(x=gcmStp,y=VarValue, colour=factor(gcmStp))) +
+  geom_boxplot(alpha=0.5) +
+  geom_violin(alpha=0) +
+  geom_jitter(size=0.5) +
+  facet_wrap(rcpStp+timeSlice~Variable, scales = "free",  ncol = 4) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(legend.position="none") +
+  xlab("Climate model") +
+  ylab("Variable value") + 
+  geom_hline(aes(yintercept=mean),avs1,linetype = 2)
+```
+
+# Check CO2 values
+
+```{r CO2}
+# what's average co2 for each time slice?
+av_co2 <- av.per.pixel %>% 
+  dplyr::filter(Variable =="co2") %>%
+  group_by(rcpStp,timeSlice,Variable) %>% 
+  summarise(mean=round(mean(VarValue),0))
+
+print(av_co2)
+
+```
+
+## Time-slice diffs per GCM within grid cell
+
+Create difference of time-slice averages per pixel (valid for GCM only)
+
+```{r DiffPerPixel, echo=FALSE,echo=FALSE, fig.height=18,fig.width=12}
+
+# diff.timeSlice.per.pixel
+diff.timeSlice.per.pixel <- av.per.pixel %>%
+  dplyr::select(-timeSlice)%>%
+  tidyr::spread(timeSliceName, VarValue)  %>%
+  mutate(diff_mid_a = ts_b_midCentury - ts_a_base,
+         diff_end_a = ts_c_endCentury - ts_a_base,
+         diff_mid_r = ts_b_midCentury/ts_a_base*100-100,
+         diff_end_r = ts_c_endCentury/ts_a_base*100-100
+         ) %>%
+  tidyr::gather("Diff_type", "DiffValue", diff_mid_a:diff_end_r) %>%
+  mutate(Diff_type = as.factor(Diff_type)) %>%
+  mutate(Diff_typeName = factor(Diff_type,
+                            levels=c("diff_end_a",
+                                     "diff_end_r",
+                                     "diff_mid_a",
+                                     "diff_mid_r"),
+                            labels=c("End-century (absolute)", 
+                           "End-century", 
+                           "Mid-century (absolute)", 
+                           "Mid-century")))
+
+#head(diff.timeSlice.per.pixel)
+summary(diff.timeSlice.per.pixel)
+
+write.csv(diff.timeSlice.per.pixel, file = paste0(folderName,"DiffPerPixel.csv"))
+
+```
+
+# Show distribution of baseline + RCP 8.5 changes
+
+- Used in paper
+- RCP 8.5
+- End-century only
+
+```{r, fig.height=10, fig.width=12}
+
+# create subset for paper
+temp1 <- diff.timeSlice.per.pixel %>%
+  filter(rcpStp == "RCP85") %>% # for paper
+  filter(Variable != "co2") %>% 
+  filter(Diff_typeName == "End-century (absolute)") %>%
+  mutate(gridCell = as.factor(paste0(row,"_", col))) %>%
+  mutate(GCMs = gcmStp) %>%
+  mutate(BaseValue = ts_a_base) %>%
+  dplyr::select(row, col, Variable, GCMs, BaseValue, DiffValue) %>%
+  tidyr::gather(VarType, VarValue,BaseValue:DiffValue) %>%
+  mutate(VarType = factor(VarType, levels = c("BaseValue","DiffValue"), 
+                          labels=c("Baseline value","Climate change impact") ))
+
+summary(temp1)
+
+
+# find averages
+avs4 <- temp1 %>% 
+  group_by(rcpStp,Variable, VarType) %>% 
+  summarise(mean=mean(VarValue))
+
+summary(avs4)
+
+# plot
+temp1 %>%
+  ggplot(aes(VarValue, fill = GCMs, colour = GCMs)) +
+  geom_density(alpha = 0.2) +
+  facet_wrap(Variable~VarType, scales = "free", ncol = 2) +
+    xlab("Average weather variables for 20-year analysis period") +
+  ylab("Distribution across catchment area" ) + 
+  geom_vline(aes(xintercept=mean),avs4,linetype = 2)
+
+```
+
+# Show values for writing materials and methods in paper
+
+```{r}
+
+temp1 %>%
+  tidyr::spread(Variable, VarValue) %>%
+  filter(VarType == "Baseline value") %>%
+  summary()
+
+```
+
+# show differences now
+
+```{r}
+temp1 %>%
+  tidyr::spread(Variable, VarValue) %>%
+  filter(VarType == "Climate change impact") %>%
+  summary()
+```
+
+## GCM diffs per "time-slice deltas" within grid cell
+
+- it only makes sense to compare the variability in "deltas" as teh absolute valuaes are inherently different among GCMs 
+
+```{r rasteriseAverages}
+
+# group all GCMs (gcm variability related to time-slice diffs)
+gcm.var.per.pixel <- diff.timeSlice.per.pixel %>%
+  filter(Variable != "co2") %>%
+ # mutate(gridCell = as.factor(paste0(row,"_", col))) %>%
+  group_by(thisLat, thisLong, rcpStp, Variable, Diff_type) %>%
+  dplyr::select(thisLat, thisLong, rcpStp, Variable, Diff_type,DiffValue) %>%
+  summarise_each(funs(mean,sd)) %>%
+  mutate(cv = sd/mean*100) %>%
+  tidyr::gather("Stats","StatsValue",mean:cv) %>%
+  mutate(Stats = as.factor(Stats))%>%
+  mutate(thisPixel =factor( paste0(thisLat,"_",thisLong)))
+
+#head(gcm.var.per.pixel)
+summary(gcm.var.per.pixel)
+
+write.csv(gcm.var.per.pixel, file =paste0(folderName,"RasterOutput(RA2)_stats_GCMs.csv"))
+
+```
+
+## Check GCM variability
+
+- Unfinished
+- FIXME:ggmap not working anymore
+- A new script can read "RasterOutput(RA2)_stats_GCMs.csv" and apply ggmap
+
+```{r, fig.height=30, fig.width=12}
+# gcm.var.per.pixel %>%
+#   filter(Stats == "cv") %>%
+#   ggplot(aes(x=StatsValue,y=thisPixel)) +
+#   geom_point() +
+#   facet_wrap(Variable~Diff_type+rcpStp, scales="free")
+```
+
+
+
+## Differences among GCM (regarding relative changes projected for time-slices)
+
+```{r SpatialGcmUncertanty}
+
+# # Not yet understanding ggmap synthax
+# 
+# 
+# 
+# 
+# # get shape
+# library(maptools)
+# shpFile <- "C:\\apsim_dev\\Projects\\CCII\\GIS_layers\\CaseStudy\\lowerKaitunabnd(WGS84).shp"
+# shpData <- readShapeSpatial(shpFile, proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+# str(shpData) 
+# 
+# # set base map
+# library(ggmap)
+# lat <- -37.925
+# long <- 176.275
+# zoom <- 10
+# 
+# baseMapData <- get_map(location = c(lon = long, lat = lat),
+#                          color = "color",
+#                          source = "google",
+#                          maptype = "roadmap",
+#                          zoom = zoom)
+# 
+# baseMap <- ggmap(baseMapData,
+#       extent = "device",
+#       ylab = "Latitude",
+#       xlab = "Longitude")
+# 
+# # FIXME: not working yet
+# head(gcm.var.per.pixel)
+# 
+# # rainfall
+# mapDf <- gcm.var.per.pixel %>%
+#   filter(Diff_type == "diff_end_r" & Variable == "rain") %>%
+#   filter(Stats == "mean")
+# 
+# 
+# baseMap +
+#   geom_point(aes(x=thisLong, y=thisLat, show_guide=TRUE, colour=StatsValue), size = 8, 
+#              data=mapDf, alpha=0.9, na.rm=T, shape = 15) +
+#  # scale_color_gradient(low='blue', high='red') +
+#   geom_polygon(aes(x=long, y=lat, group=id), data=shpData, colour="black",fill=NA) +
+#   facet_grid(~Variable) + 
+#     scale_colour_gradient2(low="#deebf7", mid = "#9ecae1", 
+#                          high="#3182bd", midpoint=0)
+
+
+
+
+
+
+# baseMap +
+#   stat_density2d(aes(x=thisLong, y=thisLat, z=StatsValue, fill = ..density..), geom="tile", 
+#                  contour = FALSE, data=mapDf) +
+#   geom_polygon(aes(x=long, y=lat, group=id), data=shpData, colour="black",fill=NA) +
+#   facet_grid(~Variable) + 
+#   scale_colour_gradient2(low="#ef8a62", mid = "#ffffbf", 
+#                          high="#67a9cf", midpoint=0)
+
+
+```
+
+```{r}
+# # temp
+# mapDf <- gcm.var.per.pixel %>%
+#   filter(Diff_type == "diff_end_a" & Variable == "maxt") %>%
+#  # filter(!grepl("_a", Diff_type)) %>% # get rid of abaolute diffs
+#   filter(Stats == "mean")
+# 
+# 
+# baseMap +
+#   geom_point(aes(x=thisLong, y=thisLat, show_guide=TRUE, colour=StatsValue), size = 7, 
+#              data=mapDf, alpha=0.9, na.rm=T, shape = 15) +
+#  # scale_color_gradient(low='blue', high='red') +
+#   geom_polygon(aes(x=long, y=lat, group=id), data=shpData, colour="black",fill=NA) +
+#   facet_grid(~Variable) + 
+#     scale_colour_gradient2(low="#fee6ce", mid = "#fdae6b", 
+#                          high="#e6550d", midpoint=median(mapDf$StatsValue)) +
+#   guides(fill = guide_legend(keywidth = 0.5, keyheight = 1, title = "oC"))
+```
+
+```{r}
+# # trying panel
+# mapDf <- gcm.var.per.pixel %>%
+#   filter(Diff_type == "diff_end_r") %>%
+#   filter(Stats == "mean")
+# 
+# 
+# baseMap +
+#   geom_point(aes(x=thisLong, y=thisLat, show_guide=TRUE, colour=StatsValue), size = 4, 
+#              data=mapDf, alpha=0.9, na.rm=T, shape = 15) +
+#   geom_polygon(aes(x=long, y=lat, group=id), data=shpData, colour="black",fill=NA) +
+#   facet_grid(~Variable) + 
+#     scale_colour_gradient2(low="#fee6ce", mid = "#fdae6b", 
+#                          high="#e6550d", midpoint=median(mapDf$StatsValue))
+```
+
+## Rasterise diifs - maybe not needed anymore after ggmap works
+
+```{r RasterGcmDiffs}
+
+# head(mapDf) # already selected for relative diffs
+# 
+# outNames <- as.character(unique(mapDf$Variable))
+# scenNames <- as.character(unique(mapDf$Diff_type))
+# statsNames <- as.character(unique(mapDf$Stats))
+# 
+# par(mfcol=c(1,1))
+# 
+# # creates directories to save results
+# for (st in 1:length(statsNames)) {
+# #  dir.create(file.path(getwd(),scenNames[sc]), showWarnings = FALSE)
+#   dir.create(file.path(getwd(),"MapsDiff"), showWarnings = FALSE)
+# }
+# 
+# mapNo <- 0
+# 
+# spg <- list() # dataframe list to be coerced as spatial object
+# rast <- list() # raster
+# 
+# for (st in 1:length(statsNames)) {
+# 
+#  for (sc in 1:length(scenNames)) {
+# 
+#    for(o in 1:length(outNames)){
+#      
+#      mapNo <- mapNo + 1
+#      
+#       df <- NULL # data subset
+#       df <- mapDf %>%
+#       subset(Diff_type == scenNames[sc] & 
+#                Variable == outNames[o] & 
+#                Stats == statsNames[st])
+#       
+#       # Create grid type objects stored by map #
+#       spg[[o]] <- data.frame(df$thisLong, df$thisLat, df$StatsValue)
+#       coordinates(spg[[o]]) = ~ df.thisLong + df.thisLat # Attention to variable names
+#       gridded(spg[[o]]) <- TRUE
+#       rast[[o]] <- raster(spg[[o]])
+#       proj4string(rast[[o]]) = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+#       
+#       #Title
+#       tit <- paste0(mapNo,"_",scenNames[sc],"_",outNames[o],"_",statsNames[st]) 
+#       
+#       # save it as image
+#       thisFile <- paste0(getwd(),"//MapsDiff//",tit,".tiff")
+#         writeRaster(rast[[o]], file= paste0(thisFile), overwrite=TRUE) 
+#       
+#      # plot it
+#      par(mar=c(3,3,3,3))
+#      par(mfrow=c(1,2))
+#      plot(rast[[o]])
+#      boxplot(rast[[o]],main = tit)
+#         
+#     
+#       # stack them together
+#       if(mapNo == 1) {
+#         s <- NULL
+#         s <- stack(rast[[o]])} 
+#      else {
+#         s[[mapNo]] <- rast[[o]]
+#       }
+#      
+#      print(tit)
+#      
+#    } # statsNames
+#    
+#  } # scenNames
+#   
+# } # outNames
+# 
+# 
+# # plot maps
+# 
+# par(mfrow=c(2,2))
+# for (mc in 1:mapNo) {
+#   plot(s[[mc]], main = outNames[mc])
+#  # writeRaster(rast_diff, file=paste0("diffAbs_",outNames[mc],".tiff"), overwrite=TRUE) 
+# }
+```
+
