@@ -252,8 +252,9 @@ av_y_diff %>%
   geom_hline(aes(yintercept = 0), linetype = 2) +
   ylab(" Climate change impact on crop yields (% baseline)")+
   xlab("Sowing date adaptation")  +
-  theme(legend.position="top") +
-  theme(legend.title=element_blank()) +
+  theme(legend.position="right") +
+  labs(size="Elevation (m)", colour="GCMs") +
+#  theme(legend.title=element_blank()) +
   theme(text = element_text(size=20))
 ```
 
@@ -343,7 +344,9 @@ av_sd_y_diff %>%
   geom_errorbar(aes(ymin=wheat_mean-wheat_sd, ymax=wheat_mean+wheat_sd), colour="grey", width=.1, alpha=0.8) +
   labs(size="Elevation (m)", colour="Maize genotype", shape="") +
   guides(shape=FALSE) +
-  theme(text=element_text(size=18))
+  theme(text=element_text(size=18)) + 
+  ggtitle("Climate change impact \non above-ground biomass (% baseline)") +
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
 
