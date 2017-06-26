@@ -203,7 +203,7 @@ df_rcp_base <- df_rcp_fut <- df_rcp_only <- NULL
 
 # Absolute only
 mapData_02 <- df_bio_diff %>%
-#  filter(thisCultivar == "short")  %>%
+  mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>%
   dplyr::select(thisLat, thisLong, thisCrop, thisCultivar, Adaptation, diff_CC_abs) %>%
   group_by(thisLat, thisLong, thisCrop, thisCultivar, Adaptation) %>%
   summarise_each(funs(mean))
@@ -214,6 +214,7 @@ write.table(mapData_02, paste0(outFolder,"Map_02_YieldChange_Absolute.txt"),quot
 
 # Percentage only
 mapData_03 <- df_bio_diff %>%
+    mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>%
   dplyr::select(thisLat, thisLong, thisCrop, thisCultivar, Adaptation, diff_CC_rel) %>%
   group_by(thisLat, thisLong, thisCrop, thisCultivar, Adaptation) %>%
   summarise_each(funs(mean))
