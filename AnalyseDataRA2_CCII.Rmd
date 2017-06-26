@@ -22,9 +22,10 @@ library(knitr)
 ```{r ReadRaw}
 
 dataDir <- "C:\\GitHubRepos\\CCII_ShinyApp\\data\\"
+
 rawData <- "Data_RA2_spinUp.csv"
 
-df_raw <- read.csv(file = paste0(dataDir,rawData))
+df_raw <- read.csv(file = paste0(dataDir,rawData))     
 
 summary(df_raw)
 ```
@@ -44,8 +45,8 @@ dfTemp1 <- df_raw %>%
   filter(thisRCP != "NonAdRCP45") %>%
   filter(thisSoil == "highWHC") %>%
   dplyr::select(-X,-X.1, -skip) %>% # get rid of extra cols
-  mutate(Adaptation = factor(ifelse(grepl("NonAd",thisRCP), "Not_adapted_sow", "Adapted_sow"))) %>%
-  mutate(Adaptation=factor(Adaptation, levels=c("Not_adapted_sow","Adapted_sow"))) %>%
+  mutate(Adaptation = factor(ifelse(grepl("NonAd",thisRCP), "Not adapted sow", "Adapted sow"))) %>%
+  mutate(Adaptation = factor(Adaptation, levels=c("Not adapted sow","Adapted sow"))) %>%
   mutate(thisRCP = ifelse(!grepl("NonAd",thisRCP),as.character(thisRCP),
                           substring(as.character(thisRCP),6) # get rid of the prefix in RCP label
                           )) %>%
@@ -146,7 +147,7 @@ mapData_01 %>%
 
 # Calculate climate change impacts on yield 
 
-- Average of all 20 years per pixel
+- Average of all 20 years per grid-cell
 
 ```{r}
 
@@ -193,10 +194,10 @@ summary(df_bio_diff)
 df_rcp_base <- df_rcp_fut <- df_rcp_only <- NULL
 ```
 
-
 # Map of climate change effect on yields
 
-- Absolute values
+- Absolute values and percentage of baseline
+- Averaged also by the 6 GCMs
 
 ```{r}
 
@@ -233,10 +234,15 @@ dodge2 <- position_dodge(width = 0.5)
 dodge3 <- position_dodge(width = 0.25)
 
 # graph all
-df_bio_diff %>%
+av_y_diff <- df_bio_diff %>%
   dplyr::select(thisLat, thisLong, thisGCM, thisCrop, thisCultivar, Adaptation, Altitude_masl, diff_CC_rel) %>%
-  group_by(thisLat, thisLong, thisGCM, thisCrop, Adaptation, thisCultivar) %>%
-  summarise_each(funs(mean)) %>%
+  group_by(thisLat, thisLong, thisGCM, thisCrop,  Adaptation, thisCultivar) %>%
+  summarise_each(funs(mean)) 
+
+
+av_y_diff %>%
+   mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
+                               labels=c("short-cycle maize","long-cycle maize"))) %>%
   ggplot(aes(x=Adaptation,y=diff_CC_rel)) +
   geom_jitter(alpha=0.5, position = dodge2, aes(colour = factor(thisGCM), size=Altitude_masl)) +
   scale_size(range = c(0, 4)) +
@@ -251,11 +257,90 @@ df_bio_diff %>%
   theme(text = element_text(size=20))
 ```
 
+# get numbers of CC impact
+
+```{r}
+av_y_diff %>%
+  ungroup() %>%
+  group_by(thisCrop,Adaptation,thisCultivar) %>%
+  summarise(min=min(diff_CC_rel),
+            max=max(diff_CC_rel),
+            median=median(diff_CC_rel)
+            )
+  
+```
 
 
 
+## Relate climate change impacts to elevation
+
+-use elevation to show pattern of response
+
+```{r, fig.height=8, fig.width=12}
+
+# graph altitude effect
+av_y_diff %>%
+  mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
+                               labels=c("(short-cycle maize)","(long-cycle maize)"))) %>%
+  ggplot(aes(x=Altitude_masl,
+             y=diff_CC_rel, 
+             shape=Adaptation, 
+             linetype=Adaptation)) +
+  geom_smooth(alpha=0.4) +
+  geom_point(aes(colour=thisGCM),alpha=0.4, size = 3) +
+  facet_wrap(thisCrop~thisCultivar, scales = "free", ncol=2) + 
+  geom_hline(aes(yintercept = 0), linetype = 2) +
+  ylab(" Climate change impact on crop yields (% baseline)")+
+  xlab("Elevation (m)")  +
+  theme(legend.position="top") +
+  theme(legend.title=element_blank()) +
+  theme(text = element_text(size=18))
 
 
+```
+
+
+
+## combination of wheat and maize responses
+
+```{r, echo=FALSE, warning=FALSE, fig.height=6, fig.width=12}
+
+l_s <- 5
+
+mx <- max(av_y_diff$diff_CC_rel)*0.7
+mn <- min(av_y_diff$diff_CC_rel)*1.3
+
+# get GCM variability too
+av_sd_y_diff <- df_bio_diff %>%
+  dplyr::select(thisLat, thisLong, thisCrop, 
+                thisCultivar, Adaptation, Altitude_masl, diff_CC_rel) %>%
+  group_by(thisLat, thisLong, thisCrop, Adaptation, Altitude_masl, thisCultivar) %>%
+  summarise_each(funs(mean, sd))
+
+# summary(av_sd_y_diff)
+
+
+# Analyse trade-off between maize and wheat yields
+av_sd_y_diff %>%
+  # group_by(thisLat, thisLong, thisCrop, thisCultivar, 
+  #          Adaptation, Altitude_masl) %>%
+ # summarise(DiffValue = mean(mean)) %>%
+  dplyr::select(-sd) %>%
+  tidyr::spread(thisCrop, mean) %>%
+  ggplot(aes(x=maize, y=wheat, colour=factor(thisCultivar))) +
+  geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=0.8) +
+  scale_shape(solid = FALSE) +
+  facet_wrap(~Adaptation, scales = "free") + 
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  xlab("Maize silage") + 
+  ylab("Wheat cover crop") + 
+  geom_errorbar(aes(ymin=len-ci, ymax=len+ci), colour="grey", width=.1) +
+  labs(size="Elevation (m)", colour="Maize genotype", shape="") +
+  guides(shape=FALSE) +
+  theme(text=element_text(size=18))
+
+```
 
 
 
