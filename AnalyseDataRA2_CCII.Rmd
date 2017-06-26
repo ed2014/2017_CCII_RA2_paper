@@ -184,7 +184,7 @@ df_rcp_only <- merge(df_rcp_fut,
 df_bio_diff <- df_rcp_only %>%
   ungroup() %>%
   mutate(diff_CC_abs = TotalBiomass - TotalBiomass_Base) %>%
-  mutate(diff_CC_rel = diff_CC_abs/TotalBiomass*100)
+  mutate(diff_CC_rel = diff_CC_abs/TotalBiomass_Base*100)
  # mutate(Adaptation = factor(Adaptation, levels=c("Not adapted sow", "Adapted sow"))) %>%
  # mutate(thisCultivar = factor(thisCultivar, levels=c("long", "short")))
 
@@ -319,23 +319,28 @@ av_sd_y_diff <- df_bio_diff %>%
 
 # summary(av_sd_y_diff)
 
-
 # Analyse trade-off between maize and wheat yields
 av_sd_y_diff %>%
-  # group_by(thisLat, thisLong, thisCrop, thisCultivar, 
-  #          Adaptation, Altitude_masl) %>%
- # summarise(DiffValue = mean(mean)) %>%
-  dplyr::select(-sd) %>%
-  tidyr::spread(thisCrop, mean) %>%
-  ggplot(aes(x=maize, y=wheat, colour=factor(thisCultivar))) +
-  geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=0.8) +
+    mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
+                               labels=c("Short-cycle maize","Long-cycle maize"))) %>%
+  unite(temp,mean,sd)%>%
+  tidyr::spread(thisCrop, temp) %>%
+  separate(maize, c("maize_mean","maize_sd"), sep="_") %>%
+  separate(wheat, c("wheat_mean","wheat_sd"), sep="_") %>%
+  mutate(maize_mean = as.numeric(maize_mean),
+         wheat_mean = as.numeric(wheat_mean),
+         maize_sd = as.numeric(maize_sd),
+         wheat_sd = as.numeric(wheat_sd)) %>%
+  ggplot(aes(x=maize_mean, y=wheat_mean, colour=factor(thisCultivar))) +
+  geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=1) +
   scale_shape(solid = FALSE) +
   facet_wrap(~Adaptation, scales = "free") + 
   geom_hline(yintercept = 0, linetype = 2) +
   geom_vline(xintercept = 0, linetype = 2) +
   xlab("Maize silage") + 
   ylab("Wheat cover crop") + 
-  geom_errorbar(aes(ymin=len-ci, ymax=len+ci), colour="grey", width=.1) +
+  geom_errorbarh(aes(xmin=maize_mean-maize_sd, xmax=maize_mean+maize_sd),colour="grey", width=.1, alpha=0.8) +
+  geom_errorbar(aes(ymin=wheat_mean-wheat_sd, ymax=wheat_mean+wheat_sd), colour="grey", width=.1, alpha=0.8) +
   labs(size="Elevation (m)", colour="Maize genotype", shape="") +
   guides(shape=FALSE) +
   theme(text=element_text(size=18))
