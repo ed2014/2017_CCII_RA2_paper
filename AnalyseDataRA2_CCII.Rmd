@@ -227,7 +227,7 @@ write.table(mapData_03, paste0(outFolder,"Map_03_YieldChange_Percentage.txt"),qu
 
 # Graph CC impact on biomass
 
-```{r, fig.height=10, fig.width=10}
+```{r, fig.height=8, fig.width=10}
 
 dodge <- position_dodge(width = 1)
 dodge1 <- position_dodge(width = 0.8)
@@ -246,17 +246,18 @@ av_y_diff %>%
                                labels=c("short-cycle maize","long-cycle maize"))) %>%
   ggplot(aes(x=Adaptation,y=diff_CC_rel)) +
   geom_jitter(alpha=0.5, position = dodge2, aes(colour = factor(thisGCM), size=Altitude_masl)) +
+ # geom_jitter(alpha=0.5, position = dodge2, aes(colour = factor(thisGCM))) +
   scale_size(range = c(0, 4)) +
   geom_boxplot(alpha=0.2,position = dodge) +
   geom_violin(alpha=0.2,position = dodge) +
   facet_grid(thisCrop~thisCultivar, scales = "free") + 
   geom_hline(aes(yintercept = 0), linetype = 2) +
-  ylab(" Climate change impact on crop yields (% baseline)")+
+  ylab(" Climate change impact \non crop yields (% baseline)")+
   xlab("Sowing date adaptation")  +
   theme(legend.position="right") +
   labs(size="Elevation (m)", colour="GCMs") +
-#  theme(legend.title=element_blank()) +
-  theme(text = element_text(size=20))
+ # theme(legend.title=element_blank()) +
+  theme(text = element_text(size=18))
 ```
 
 # get numbers of CC impact
@@ -271,6 +272,97 @@ av_y_diff %>%
             )
   
 ```
+
+
+
+
+## combination of wheat and maize responses
+
+```{r, echo=FALSE, warning=FALSE, fig.height=6, fig.width=12}
+
+l_s <- 5
+
+# get GCM variability too
+av_sd_y_diff <- df_bio_diff %>%
+  dplyr::select(thisLat, thisLong, thisCrop, 
+                thisCultivar, Adaptation, Altitude_masl, diff_CC_abs) %>%
+  group_by(thisLat, thisLong, thisCrop, Adaptation, Altitude_masl, thisCultivar) %>%
+  summarise_each(funs(mean, sd))
+
+mx<-max(av_sd_y_diff$mean)
+mn<-min(av_sd_y_diff$mean)
+
+# summary(av_sd_y_diff)
+
+# Analyse trade-off between maize and wheat yields
+av_sd_y_diff %>%
+    mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
+                               labels=c("Short-cycle maize","Long-cycle maize"))) %>%
+  unite(temp,mean,sd)%>%
+  tidyr::spread(thisCrop, temp) %>%
+  separate(maize, c("maize_mean","maize_sd"), sep="_") %>%
+  separate(wheat, c("wheat_mean","wheat_sd"), sep="_") %>%
+  mutate(maize_mean = as.numeric(maize_mean),
+         wheat_mean = as.numeric(wheat_mean),
+         maize_sd = as.numeric(maize_sd),
+         wheat_sd = as.numeric(wheat_sd)) %>%
+  ggplot(aes(x=maize_mean, y=wheat_mean, colour=factor(thisCultivar))) +
+  annotate("rect", xmin = mn, xmax = 0, ymin = mn, ymax = 0, alpha=0.05, fill="red") +
+  annotate("rect", xmin = 0, xmax = mx, ymin = 0, ymax = mx, alpha=0.05, fill="green") +
+  annotate("rect", xmin = mn, xmax = 0, ymin = 0, ymax = mx, alpha=0.05, fill="yellow") +
+  annotate("rect", xmin = 0, xmax = mx, ymin = mn, ymax = 0, alpha=0.05, fill="yellow") +
+  geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=1) +
+  scale_shape(solid = FALSE) +
+  facet_wrap(~Adaptation, scales = "free") + 
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  xlab("Maize silage (t/ha)") + 
+  ylab("Wheat cover crop (t/ha)") + 
+  geom_errorbarh(aes(xmin=maize_mean-maize_sd, xmax=maize_mean+maize_sd),colour="grey", width=.1, alpha=0.8) +
+  geom_errorbar(aes(ymin=wheat_mean-wheat_sd, ymax=wheat_mean+wheat_sd), colour="grey", width=.1, alpha=0.8) +
+  labs(size="Elevation (m)", colour="Maize genotype", shape="") +
+  guides(shape=FALSE) +
+  xlim(mn,mx) +
+  ylim(mn,mx) + 
+  theme_bw() +
+  theme(text=element_text(size=18))  +
+  ggtitle("Climate change impact \non above-ground yield") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+## Do total crop biomass per rotation
+
+```{r, fig.height=6, fig.width=12}
+df_bio_diff_tot <- av_sd_y_diff %>%
+  dplyr::select(row:luCode,thisCrop,diff_CC_abs) %>%
+  tidyr::spread(thisCrop,diff_CC_abs)%>%
+  mutate(totBioDiff = maize + wheat) %>%
+  dplyr::select(-wheat, -maize)
+
+summary(df_bio_diff_tot)
+
+
+df_bio_diff_tot %>%
+  filter(thisRCP == "RCP85") %>%
+  filter(thisScenario == "End-century") %>%
+  mutate(thisCultivar = factor(thisCultivar, levels=c("short", "long"), 
+                                labels=c("short-maize", "long-maize"))) %>%
+  ggplot(aes(x=Altitude_masl,y=totBioDiff, colour=thisGCM, shape=Adaptation)) +
+  geom_smooth(alpha=0.2, aes(linetype=Adaptation)) +
+  geom_point() +
+  scale_shape(solid = FALSE) +
+  facet_grid(thisCultivar~thisSoil) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  ylab("Total crop sequence yield change \ndue to climate change (t/ha)") +
+  xlab("Altitude (m)") +
+  theme(text=element_text(size=18))+
+  theme(legend.title=element_blank())
+
+```
+
+
 
 
 
@@ -300,58 +392,6 @@ av_y_diff %>%
 
 
 ```
-
-
-
-## combination of wheat and maize responses
-
-```{r, echo=FALSE, warning=FALSE, fig.height=6, fig.width=12}
-
-l_s <- 5
-
-mx <- max(av_y_diff$diff_CC_rel)*0.7
-mn <- min(av_y_diff$diff_CC_rel)*1.3
-
-# get GCM variability too
-av_sd_y_diff <- df_bio_diff %>%
-  dplyr::select(thisLat, thisLong, thisCrop, 
-                thisCultivar, Adaptation, Altitude_masl, diff_CC_rel) %>%
-  group_by(thisLat, thisLong, thisCrop, Adaptation, Altitude_masl, thisCultivar) %>%
-  summarise_each(funs(mean, sd))
-
-# summary(av_sd_y_diff)
-
-# Analyse trade-off between maize and wheat yields
-av_sd_y_diff %>%
-    mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
-                               labels=c("Short-cycle maize","Long-cycle maize"))) %>%
-  unite(temp,mean,sd)%>%
-  tidyr::spread(thisCrop, temp) %>%
-  separate(maize, c("maize_mean","maize_sd"), sep="_") %>%
-  separate(wheat, c("wheat_mean","wheat_sd"), sep="_") %>%
-  mutate(maize_mean = as.numeric(maize_mean),
-         wheat_mean = as.numeric(wheat_mean),
-         maize_sd = as.numeric(maize_sd),
-         wheat_sd = as.numeric(wheat_sd)) %>%
-  ggplot(aes(x=maize_mean, y=wheat_mean, colour=factor(thisCultivar))) +
-  geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=1) +
-  scale_shape(solid = FALSE) +
-  facet_wrap(~Adaptation, scales = "free") + 
-  geom_hline(yintercept = 0, linetype = 2) +
-  geom_vline(xintercept = 0, linetype = 2) +
-  xlab("Maize silage") + 
-  ylab("Wheat cover crop") + 
-  geom_errorbarh(aes(xmin=maize_mean-maize_sd, xmax=maize_mean+maize_sd),colour="grey", width=.1, alpha=0.8) +
-  geom_errorbar(aes(ymin=wheat_mean-wheat_sd, ymax=wheat_mean+wheat_sd), colour="grey", width=.1, alpha=0.8) +
-  labs(size="Elevation (m)", colour="Maize genotype", shape="") +
-  guides(shape=FALSE) +
-  theme(text=element_text(size=18)) + 
-  ggtitle("Climate change impact \non above-ground biomass (% baseline)") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-```
-
-
 
 
 
