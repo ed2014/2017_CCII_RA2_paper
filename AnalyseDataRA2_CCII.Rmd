@@ -63,7 +63,7 @@ alt_info <- read.table(altFile, header=TRUE)
 
 dfTemp2 <- merge(dfTemp1, alt_info, by = c("thisLat", "thisLong"))
 
-# merge land use class data
+# merge land use class data FIXME: this is not used early - delete and use late only?
 luFile <- "C:\\apsim_dev\\Projects\\CCII\\filter\\LandUse_NZ_All.txt"
 lu_info <- read.table(luFile, header=TRUE)
 lu_info <- as.data.frame(lu_info)
@@ -357,7 +357,7 @@ summary(df_bio_diff_tot)
 mx<-max(av_sd_y_diff$totBioDiff)
 mn<-min(av_sd_y_diff$totBioDiff)
 
-# merge land use class
+
 
 
 
@@ -366,22 +366,33 @@ mn<-min(av_sd_y_diff$totBioDiff)
 
 
 
+```{r}
+
+# merge land use class
+df_lu <- df_worked %>% dplyr::select(thisLat, thisLong,lu_class) %>% distinct()
+df <- merge(df_bio_diff_tot,df_lu, by=c("thisLat","thisLong"))
+
+summary(df)
+
+
+```
+
 ```{r, fig.height=6, fig.width=12}
 # graph
-df_bio_diff_tot %>%
+df %>%
   mutate(thisCultivar = factor(thisCultivar, levels=c("short", "long"), 
                                 labels=c("short-cycle maize", "long-cycle maize"))) %>%
-  ggplot(aes(x=Altitude_masl,y=totBioDiff, shape=Adaptation)) +
-  geom_smooth(alpha=0.5, aes(linetype=Adaptation)) +
-  geom_point(size=2) +
+  ggplot(aes(x=Altitude_masl,y=totBioDiff, colour=Adaptation)) +
+  geom_smooth(alpha=0.2, aes(linetype=Adaptation, fill=Adaptation)) +
+  geom_point(size=3, aes(shape=lu_class)) +
   scale_shape(solid = FALSE) +
   facet_grid(.~thisCultivar) +
   geom_hline(yintercept = 0, linetype = 2) +
-  ylab("Climate change impact on \ncrop rotation yield (t/ha)") +
-  xlab("Elevation (m)") +
+  ylab("Climate change impact on \naccumulated crop rotation yield (t/ha)") +
+  xlab("Elevation (m above sea level)") +
   theme(text=element_text(size=18))+
-  theme(legend.title=element_blank()) +
-  geom_errorbar(aes(ymin=totBioDiff-totSdDiff, ymax=totBioDiff+totSdDiff), colour="darkgrey", width=.1, alpha=0.8)
+  labs(colour="Adaptation", shape="Land use class") +
+  geom_errorbar(aes(ymin=totBioDiff-totSdDiff, ymax=totBioDiff+totSdDiff, colour=Adaptation), width=.1, alpha=0.8)
 ```
 
 
