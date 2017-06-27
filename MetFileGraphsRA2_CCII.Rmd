@@ -27,6 +27,7 @@ Read data
 ```{r}
 
 folderName <- "C:\\apsim_dev\\Projects\\CCII\\RA2_CaseStudy\\metFiles\\"
+workDirName <- "C:\\GitHubRepos\\2017_CCII_RA2_paper\\"
 fileName <- "All_Met_Data.csv"
 
 DATA <- read.csv(paste0(folderName,fileName))
@@ -35,14 +36,18 @@ summary(DATA)
 ```
 
 # Data clean up
+
+- for publication
+- RCP8.5 only
+- end-century only
+
+
 ```{r SummaryAll, echo=FALSE,echo=FALSE, fig.height=18,fig.width=12}
 
 # FIXME: this will have to deal with more RCPs in teh future
 
 # average across grid-cells
-av.per.pixel <- DATA %>%
- # mutate(rcpStp = as.factor("RCP85")) %>% # FIXME: quick fix to get same RCP name
-#  mutate(rcpStp = as.factor(ifelse(gcmStp == "ERA", "ERA","RCP85"))) %>%
+df <- DATA %>%
   mutate(timeSlice = as.factor(paste0("ts_",timeSlice))) %>% # avoid start of factor name with number
   group_by(row, col, gcmStp, rcpStp, timeSlice) %>% 
   summarise_each(funs(mean)) %>%
@@ -54,17 +59,37 @@ av.per.pixel <- DATA %>%
   mutate(Variable = factor(Variable,levels= c("co2","mint","maxt","rain","radn"), 
                            labels=c("co2","Minimum temperature (oC)",
                                    "Maximum temperature (oC)", 
-                                    "Rainfall (mm/year)",
+                                   "Rainfall (mm/year)",
                                    "Solar radiation (MJ/m2/year)" 
                                   ))) %>%
   mutate(timeSliceName = factor(timeSlice)) %>%
   mutate(timeSlice = factor(timeSlice,levels = c("ts_a_base","ts_b_midCentury","ts_c_endCentury"), 
                             labels=c("Baseline", "Mid-century", "End-century")))
 
-#head(av.per.pixel)
+
+# subset RCP and time-slice for publication
+av.per.pixel <- df %>%
+  filter(rcpStp == "RCP85")%>%
+  filter(timeSlice != "Mid-century")
+
 
 summary(av.per.pixel)
 
+
+```
+
+# Check CO2 values
+
+- atmospheric CO2 average
+
+```{r CO2}
+# what's average co2 for each time slice?
+av_co2 <- av.per.pixel %>% 
+  dplyr::filter(Variable =="co2") %>%
+  group_by(rcpStp,timeSlice,Variable) %>% 
+  summarise(mean=round(mean(VarValue),0))
+
+print(av_co2)
 
 ```
 
@@ -72,10 +97,11 @@ summary(av.per.pixel)
 
 - average of all pixels
 - average of all GCMs
+- save averages
 
 ```{r}
 # save for analysis
-write.csv(av.per.pixel, file = paste0(folderName,"AvsPerPixel.csv"))
+#write.csv(av.per.pixel, file = paste0(workDirName,"AvsPerPixel_CCII_paper.csv"), row.names = FALSE)
 
 # find averages to plot as ref
 avs1 <- av.per.pixel %>% 
@@ -87,37 +113,39 @@ avs1 %>%
   tidyr::spread(timeSlice,mean)
 ```
 
+# Data for map in supplement
 
-## Graph
+```{r}
+av_cv_abs <- av.per.pixel %>% 
+  dplyr::filter(Variable !="co2") %>%
+  group_by(thisLat,thisLong,gcmStp, timeSlice,Variable) %>% 
+  summarise(av_pix=mean(VarValue)) %>% # first get averages by GCM
+  group_by(thisLat,thisLong,timeSlice,Variable) %>% # now do cv by GCM
+  summarise(gcm_mean=mean(av_pix), cv=sd(av_pix)/gcm_mean*100) 
 
-```{r, fig.height=20, fig.width=12}
+summary(av_cv_abs)
+
+write.csv(av_cv_abs, file = paste0(workDirName,"ClimateDataPerPixel_av_cv_CCII_RA2.csv"), row.names = FALSE)
+```
+
+
+
+## Graph for supplement
+
+```{r, fig.height=8, fig.width=12}
 # graph averages
 av.per.pixel  %>%
-#  filter(rcpStp == "RCP85") %>%
   dplyr::filter(Variable !="co2") %>%
   ggplot(aes(x=gcmStp,y=VarValue, colour=factor(gcmStp))) +
   geom_boxplot(alpha=0.5) +
   geom_violin(alpha=0) +
   geom_jitter(size=0.5) +
-  facet_wrap(rcpStp+timeSlice~Variable, scales = "free",  ncol = 4) +
+  facet_wrap(timeSlice~Variable, scales = "free",  ncol = 4) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(legend.position="none") +
   xlab("Climate model") +
   ylab("Variable value") + 
   geom_hline(aes(yintercept=mean),avs1,linetype = 2)
-```
-
-# Check CO2 values
-
-```{r CO2}
-# what's average co2 for each time slice?
-av_co2 <- av.per.pixel %>% 
-  dplyr::filter(Variable =="co2") %>%
-  group_by(rcpStp,timeSlice,Variable) %>% 
-  summarise(mean=round(mean(VarValue),0))
-
-print(av_co2)
-
 ```
 
 ## Time-slice diffs per GCM within grid cell
