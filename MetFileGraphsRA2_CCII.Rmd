@@ -121,7 +121,9 @@ av_cv_abs <- av.per.pixel %>%
   group_by(thisLat,thisLong,gcmStp, timeSlice,Variable) %>% 
   summarise(av_pix=mean(VarValue)) %>% # first get averages by GCM
   group_by(thisLat,thisLong,timeSlice,Variable) %>% # now do cv by GCM
-  summarise(gcm_mean=mean(av_pix), cv=sd(av_pix)/gcm_mean*100) 
+  summarise(gcm_mean=mean(av_pix), 
+            stDev = sd(av_pix),
+            cv=stDev/gcm_mean*100) 
 
 summary(av_cv_abs)
 
