@@ -476,4 +476,125 @@ df_worked %>%
   geom_smooth(aes(fill=thisCultivar)) +
   facet_grid(Adaptation~thisScenario, scales = 'free') 
 ```
+## Get extra explanatory variables for t
+
+- Table in paper
+```{r, fig.height=12, fig.width=12}
+saveFolder <- "\\\\Lin-file\\home$\\cfleit\\My Documents\\My papers\\2016_CCII_Assessment\\" 
+
+table_support_vars <- df_worked %>%
+  mutate(AdaptLabel=factor(Adaptation,
+                           levels= c("Not adapted sow", "Adapted sow"),
+                            labels=c("NotAdapt","Adapt"))) %>%
+    mutate(ScenLabel=factor(thisScenario,
+                           levels= c("Baseline", "End-century"),
+                            labels=c("Base","End"))) %>%
+  dplyr::select(thisLat,thisLong,year,
+                Altitude_masl, ScenLabel,
+                AdaptLabel, thisCrop, thisCultivar,
+                TempCycleAve, SowingDOY,
+                GrowthLength,GrowthRate, IntRadSum,RUEtop,                          HarvestIndex,PTcropn) %>%
+  group_by(thisLat,thisLong,ScenLabel, AdaptLabel, thisCrop,   thisCultivar) %>%
+  summarise_each(funs(mean)) %>%
+  tidyr::gather("VarName", "VarValue", TempCycleAve:PTcropn) 
+
+
+# Base values
+# tb_base <- table_support_vars %>%
+#   filter(ScenLabel=="Base")  %>%  
+#   group_by(VarName,thisCrop,thisCultivar) %>%
+#   dplyr::select(-Altitude_masl, -year,-AdaptLabel,-ScenLabel,-thisLat,-thisLong) %>%
+#   summarise_each(funs(mean)) %>%
+#   mutate(VarValue=round(VarValue,2)) %>%
+#   tidyr::spread(thisCultivar,VarValue) 
+
+# with ranges
+tb_base <- table_support_vars %>%
+  filter(ScenLabel=="Base")  %>%  
+  group_by(VarName,thisCrop,thisCultivar) %>%
+  filter(thisCultivar == "long")  %>% # using long as example
+  dplyr::select( -Altitude_masl,-year,-AdaptLabel,-ScenLabel,-thisLat,-thisLong) %>%
+  summarise_each(funs(min,mean,max)) %>%
+  mutate(min=round(min,2),mean=round(mean,2),max=round(max,2))
+
+write.csv(tb_base,paste0(saveFolder,"Table_UnderVars_Base.csv"))  
+
+tb_base
+
+```
+
+## Difference for future
+
+```{r}
+# original table
+# tb_fut_adaptEffect <- table_support_vars %>%  
+# dplyr::select(-Altitude_masl, -year) %>%
+# ungroup() %>%
+# unite("GroupVar",ScenLabel,thisCultivar, AdaptLabel) %>%
+# spread(GroupVar, VarValue) %>%
+#   mutate(
+#     diff_short = (End_short_Adapt-Base_short_Adapt)-(End_short_NotAdapt-Base_short_Adapt),
+#     diff_long =  (End_long_Adapt-Base_long_Adapt)-(End_long_NotAdapt-Base_long_Adapt),
+#     diff_short = round(diff_short,2),
+#     diff_long = round(diff_long,2)) %>%
+#   dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
+#   group_by(VarName, thisCrop) %>%  
+#   dplyr::select(-thisLat, -thisLong) %>%
+#   summarise_each(funs(mean,min,max)) %>%
+#   tidyr::gather("DiffName","VarValue",diff_short_mean:diff_long_max) %>% 
+#   mutate(VarValue=round(VarValue,2)) %>%
+#   separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
+#   dplyr::select(-diff) %>%
+#   tidyr::spread(stat,VarValue) %>%
+#   mutate(AdaptEffect = mean)%>%
+#   dplyr::select(VarName, thisCrop,cult,AdaptEffect) %>%
+#   tidyr::spread(cult,AdaptEffect) %>%
+#   ungroup() %>%
+#   mutate(VarName=factor(VarName))
+
+
+# with ranges - FIXME: quartiles and pooled across genotypes
+tb_fut_adaptEffect <- table_support_vars %>%  
+dplyr::select(-Altitude_masl, -year) %>%
+ungroup() %>%
+unite("GroupVar",ScenLabel,thisCultivar, AdaptLabel) %>% 
+spread(GroupVar, VarValue) %>%
+  mutate(
+    diff_short = (End_short_Adapt-Base_short_Adapt)-(End_short_NotAdapt-Base_short_Adapt),
+    diff_long =  (End_long_Adapt-Base_long_Adapt)-(End_long_NotAdapt-Base_long_Adapt),
+    diff_short = round(diff_short,2),
+    diff_long = round(diff_long,2)) %>%
+  dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
+  group_by(VarName, thisCrop) %>%  
+  dplyr::select(-thisLat, -thisLong) %>%
+  summarise_each(funs(min,mean,max)) %>% # FIXME: do quantiles
+  tidyr::gather("DiffName","VarValue",diff_short_min:diff_long_max) %>% 
+  mutate(VarValue=round(VarValue,2)) %>%
+  separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
+  dplyr::select(-diff) %>%
+  tidyr::spread(stat,VarValue) %>%
+  filter(cult=="long") %>% # using long as example
+  ungroup() %>%
+  mutate(VarName=factor(VarName, levels=orF)) # FIXME: how to print table in factor order instead of alphabetical?
+
+# orF <- c("TempCycleAve","SowingDOY","GrowthLength","GrowthRate","IntRadSum","RUEtop", "HarvestIndex","PTcropn" )
+# 
+# unique(table_support_vars$VarName)
+
+ 
+write.csv(tb_fut_adaptEffect,paste0(saveFolder,"Table_UnderVars.csv"))  
+  
+summary(tb_fut_adaptEffect)  
+```
+
+graph test
+
+```{r}
+# tb_fut_adaptEffect %>%
+#   filter(VarName=="SowingDOY") %>%
+#   ggplot(aes(x=thisScenario,y=VarValue)) +
+#   geom_boxplot() +
+#   geom_jitter(aes(colour=Adaptation)) +
+#   facet_wrap(thisCrop+thisCultivar~Variable, scales = 'free')
+```
 
