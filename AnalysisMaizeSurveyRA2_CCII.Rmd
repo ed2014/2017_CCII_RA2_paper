@@ -1,0 +1,148 @@
+---
+title: "Analysis of Maize Online Survey"
+output:
+  word_document: default
+---
+> ----------------------
+
+## Maize management survey 
+
+A total of 106 maize growers  responded to a on-line survey developed by FAR and PFR.
+
+The analysis of this dataset give us a first nationwide overview of management practices used to grow maize in New Zealand.
+
+This is a analysis of the subset of data for climatic conditions of the latidudinal ranges of th eclimate zones for th eKaituna catchmnet to write a paper for RA2 in CCII_MBIE
+
+```{r Libs, echo=FALSE, include=FALSE}
+library(tidyr)
+library (dplyr)
+library (ggplot2)
+library(lubridate)
+```
+
+
+
+```{r LoadData, echo=FALSE, include=FALSE}
+
+#setwd("\\\\Lindfs12\\home$\\Cfleit\\My Documents\\Projects\\2015_MaizeSurveyFAR")
+setwd("\\\\Lin-file\\home$\\Cfleit\\My Documents\\Projects\\2015_MaizeSurveyFAR\\Analysis")
+getwd()
+
+data_clean <- read.table("DataCleanAndWorked.txt",header=TRUE)
+head(data_clean)
+summary (data_clean)
+
+
+# Create a classification based on climatic zones (based on Zhao's cluster analysis from Teixeira et al 2016)
+
+
+
+```
+
+
+* The map shows the "aproximate" location of respondents. Actual locations were slighly modified to ensure anonymity of responses.
+
+![My Figure1](RespondentMap.png)
+
+# Material for CCII paper 
+
+- Create a subset of the data close to the Kaituna catchment climate zone
+- Use aproximate climate zones from Teixeira et al 2016 EJA
+- Only high temperature and medium to high radiation (HTMR, HTHR)
+
+![My Figure2](ClimateZones_Teixeiraetal2016.png)
+
+```{r}
+
+data_kai <- data_clean %>%
+  dplyr::filter(Latitude < -36.80 & Latitude > -38.64)
+
+print(paste0("Number of selected data-points: ", nrow(data_kai)))
+
+```
+
+## Sowing date
+
+```{r, fig.height=4, fig.width=12, echo=FALSE}
+
+s <- 16 # font size so all graphs have the same
+
+# Sowing dates --------------------------------------------------------------------------------
+
+g1 <- data_kai %>%
+  dplyr::select(ClimateZone, EarlySowAdj, AverageSowAdj,LateSowAdj) %>%
+  tidyr::gather("Category","value", EarlySowAdj:LateSowAdj) %>%
+  mutate(RegionName =  reorder(ClimateZone, value)) %>%
+  mutate(value = parse_date_time(as.character(value),"j")) %>%
+  mutate(Category = factor(Category,
+                           levels=c("EarlySowAdj",
+                                    "AverageSowAdj",
+                                    "LateSowAdj"), 
+                           labels=c("Earliest","Common","Latest") )) %>%
+  ggplot(aes(x=value,y=..scaled.., fill=Category)) +
+  geom_density(alpha=0.5) + # Overlay with transparent density plot
+  xlab("Sowing date") + 
+  theme(legend.position="top",
+        text=element_text(size=s),
+        legend.title=element_blank(), 
+        axis.title.y = element_blank())
+
+#g1
+
+# CRM ---------------------------------------------------------------------------------------------
+
+g2 <- data_kai %>%
+  dplyr::select(ClimateZone, CRM_max,CRM_often_max, CRM_min) %>%
+  tidyr::gather("Category","value", CRM_min:CRM_max) %>%
+  mutate(Category = as.factor(Category)) %>%
+  mutate(Category = factor(Category,
+                           levels=c("CRM_min",
+                                    "CRM_often_max",
+                                    "CRM_max"), 
+                           labels=c("Shortest","Common","Longest") )) %>%
+
+  mutate(ClimateZone =  reorder(ClimateZone, value)) %>%
+  mutate(DaysToHarvest = 1.043*value + 29.817) %>% # from FAR booklet page 14 Bay of Plenty Hybrids
+  # https://www.far.org.nz/assets/files/editable//cea61fc5-92e0-45ea-af77-e2724f568643.pdf
+#  ggplot(aes(x=DaysToHarvest,y=..scaled.., fill=Category)) +
+  ggplot(aes(x=value,y=..scaled.., fill=Category)) +
+  geom_density(alpha=0.5, position="identity") + # Overlay with transparent density plot
+
+  xlab("Genotype maturity rating")  + 
+ #  xlab("Days to harvest")  + 
+  theme(legend.position="top",
+        text=element_text(size=s),
+        legend.title=element_blank(), 
+        axis.title.y = element_blank())
+
+
+# Yield ------------------------------------------------------------------------------------------------
+
+g3 <- data_kai %>%
+  dplyr::select(ClimateZone, Silage_Yield_Low_Adj, Silage_Yield_Med_Adj,Silage_Yield_High_Adj) %>%
+  tidyr::gather("Category","value", Silage_Yield_Low_Adj:Silage_Yield_High_Adj) %>%
+  mutate(Category = factor(Category,
+                           levels=c("Silage_Yield_Low_Adj",
+                                    "Silage_Yield_Med_Adj",
+                                    "Silage_Yield_High_Adj"), 
+                           labels=c("Lowest","Common","Highest") )) %>%
+  mutate(ClimateZone =  reorder(ClimateZone, value)) %>%
+  ggplot(aes(x=value,y=..scaled.., fill=Category)) +
+  geom_density(alpha=0.5, position="identity") + # Overlay with transparent density plot
+  xlab("Silage yield (t dry matter/ha)") + 
+  theme(legend.position="top",
+        text=element_text(size=s),
+        legend.title=element_blank(), 
+        axis.title.y = element_blank())
+
+#g3
+
+library(gridExtra)
+
+g <- grid.arrange(g1, g2, g3, ncol=3)
+
+g
+
+```
+
+
