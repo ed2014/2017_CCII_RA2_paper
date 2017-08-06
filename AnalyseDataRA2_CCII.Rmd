@@ -45,8 +45,9 @@ dfTemp1 <- df_raw %>%
   filter(thisRCP != "NonAdRCP45") %>%
   filter(thisSoil == "highWHC") %>%
   dplyr::select(-X,-X.1, -skip) %>% # get rid of extra cols
-  mutate(Adaptation = factor(ifelse(grepl("NonAd",thisRCP), "Not adapted sow", "Adapted sow"))) %>%
-  mutate(Adaptation = factor(Adaptation, levels=c("Not adapted sow","Adapted sow"))) %>%
+  mutate(Adaptation = factor(ifelse(grepl("NonAd",thisRCP), "NotAdaptedSow", "AdaptedSow"))) %>%
+  mutate(Adaptation = factor(Adaptation, levels=c("NotAdaptedSow","AdaptedSow")
+                             )) %>%
   mutate(thisRCP = ifelse(!grepl("NonAd",thisRCP),as.character(thisRCP),
                           substring(as.character(thisRCP),6) # get rid of the prefix in RCP label
                           )) %>%
@@ -81,7 +82,7 @@ summary(lu_info)
 df_worked <- merge(dfTemp2, lu_info, by = c("row", "col"))
 
 # Clean temporary data from memory
-df_raw<-dfTemp1 <- dfTemp2 <- lu_info <- alt_info <- NULL
+dfTemp1 <- dfTemp2 <- lu_info <- alt_info <- NULL #df_raw<-
 
 summary(df_worked)
 
@@ -96,7 +97,7 @@ summary(df_worked)
 df_worked %>%
   dplyr::select(thisScenario,thisRCP, year) %>%
   group_by(thisScenario,thisRCP) %>%
-  summarise_each(funs(min, max))%>%
+  summarise_all(funs(min, max))%>%
   mutate(DataPeriod = max-min)
 ```
 
@@ -113,7 +114,7 @@ mapData_01 <- df_worked %>%
   group_by(thisLat, thisLong, thisCrop, thisCultivar) %>%
   dplyr::select(thisLat, thisLong, thisCrop, thisCultivar, TotalBiomass) %>%
   mutate(TotalBiomass=TotalBiomass) %>%
-  summarise_each(funs(mean))
+  summarise_all(funs(mean))
 
 summary(mapData_01)
 
@@ -128,7 +129,7 @@ write.table(mapData_01, paste0(outFolder,"Map_01_BaselineYields.txt"),quote = FA
 mapData_01 %>%
   group_by(thisCrop,thisCultivar) %>%
   dplyr::select(thisCrop,thisCultivar, TotalBiomass) %>%
-  summarise_each(funs(min, max, mean))
+  summarise_all(funs(min, max, mean))
 
 ```
 
@@ -139,7 +140,7 @@ mapData_01 %>%
 mapData_01 %>%
   group_by(thisCrop,thisCultivar) %>%
   dplyr::select(thisCrop,thisCultivar, TotalBiomass) %>%
-  summarise_each(funs(max)) %>%
+  summarise_all(funs(max)) %>%
   tidyr::spread(thisCultivar,TotalBiomass) %>%
   mutate(shortEffect=(short-long)/long*100)
 
@@ -158,7 +159,7 @@ df_rcp_base <-  df_worked %>%
   mutate(TotalBiomass_Base = TotalBiomass) %>%
    group_by(row, col, thisGCM, thisCrop, thisCultivar) %>%
    dplyr::select(row, col, thisGCM, thisCrop, thisCultivar, TotalBiomass_Base) %>% # name it differently
-   summarise_each(funs(mean))
+   summarise_all(funs(mean))
 #summary(df_rcp_base)
 
 # isolate GCM FUTURE from RCPs (includes extra fields that we'll use later)
@@ -170,7 +171,7 @@ df_rcp_fut <-  df_worked %>%
                 thisCrop, thisCultivar, thisRCP, Adaptation, lu_class) %>%
   dplyr::select(thisLat, thisLong, row, col, thisScenario, thisGCM, 
                 thisCrop, thisCultivar, thisRCP, Adaptation, lu_class, Altitude_masl,luCode, TotalBiomass) %>%
-  summarise_each(funs(mean))
+  summarise_all(funs(mean))
 #summary(df_rcp_fut)
 
 # create df with "only" 20-year average RCP data per pixel now
@@ -203,10 +204,10 @@ df_rcp_base <- df_rcp_fut <- df_rcp_only <- NULL
 
 # Absolute only
 mapData_02 <- df_bio_diff %>%
-  mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>%
+#  mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>% # Not needed now with simple names
   dplyr::select(thisLat, thisLong, thisCrop, thisCultivar, Adaptation, diff_CC_abs) %>%
   group_by(thisLat, thisLong, thisCrop, thisCultivar, Adaptation) %>%
-  summarise_each(funs(mean))
+  summarise_all(funs(mean))
 
 summary(mapData_02)
 
@@ -214,10 +215,10 @@ write.table(mapData_02, paste0(outFolder,"Map_02_YieldChange_Absolute.txt"),quot
 
 # Percentage only
 mapData_03 <- df_bio_diff %>%
-    mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>%
+ #   mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>% # Not needed now with simple names
   dplyr::select(thisLat, thisLong, thisCrop, thisCultivar, Adaptation, diff_CC_rel) %>%
   group_by(thisLat, thisLong, thisCrop, thisCultivar, Adaptation) %>%
-  summarise_each(funs(mean))
+  summarise_all(funs(mean))
 
 summary(mapData_03)
 
@@ -238,10 +239,13 @@ dodge3 <- position_dodge(width = 0.25)
 av_y_diff <- df_bio_diff %>%
   dplyr::select(thisLat, thisLong, thisGCM, thisCrop, thisCultivar, Adaptation, Altitude_masl, diff_CC_rel) %>%
   group_by(thisLat, thisLong, thisGCM, thisCrop,  Adaptation, thisCultivar) %>%
-  summarise_each(funs(mean)) 
+  summarise_all(funs(mean)) 
 
 
 av_y_diff %>%
+   ungroup() %>%
+  mutate(Adaptation = factor(Adaptation,levels=c("NotAdaptedSow", "AdaptedSow"),
+                               labels=c("Not adapted","Adapted"))) %>%
    mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
                                labels=c("short-cycle maize","long-cycle maize"))) %>%
   ggplot(aes(x=Adaptation,y=diff_CC_rel)) +
@@ -252,7 +256,7 @@ av_y_diff %>%
   geom_violin(alpha=0.2,position = dodge) +
   facet_grid(thisCrop~thisCultivar, scales = "free") + 
   geom_hline(aes(yintercept = 0), linetype = 2) +
-  ylab(" Climate change impact \non crop yields (% baseline)")+
+  ylab("Climate change impact \non crop yields (% baseline)")+
   xlab("Sowing date adaptation")  +
   theme(legend.position="right") +
   labs(size="Elevation (m)", colour="GCMs") +
@@ -296,7 +300,7 @@ av_sd_y_diff <- df_bio_diff %>%
   dplyr::select(thisLat, thisLong, thisCrop, 
                 thisCultivar, Adaptation, Altitude_masl, diff_CC_abs) %>%
   group_by(thisLat, thisLong, thisCrop, Adaptation, Altitude_masl, thisCultivar) %>%
-  summarise_each(funs(mean, sd))
+  summarise_all(funs(mean, sd))
 
 mx<-max(av_sd_y_diff$mean)
 mn<-min(av_sd_y_diff$mean)
@@ -305,6 +309,9 @@ mn<-min(av_sd_y_diff$mean)
 
 # Analyse trade-off between maize and wheat yields
 av_sd_y_diff %>%
+  ungroup() %>%
+    mutate(Adaptation = factor(Adaptation,levels=c("NotAdaptedSow", "AdaptedSow"),
+                               labels=c("Not adapted sowing date","Adapted sowing date"))) %>%
     mutate(thisCultivar = factor(thisCultivar,levels=c("short", "long"),
                                labels=c("Short-cycle maize","Long-cycle maize"))) %>%
   unite(temp,mean,sd) %>%
@@ -325,8 +332,8 @@ av_sd_y_diff %>%
   facet_wrap(~Adaptation, scales = "free") + 
   geom_hline(yintercept = 0, linetype = 2) +
   geom_vline(xintercept = 0, linetype = 2) +
-  xlab("Maize silage (t/ha)") + 
-  ylab("Wheat cover crop (t/ha)") + 
+  xlab("Maize silage (t DM/ha)") + 
+  ylab("Wheat cover crop (t DM/ha)") + 
   geom_errorbarh(aes(xmin=maize_mean-maize_sd, xmax=maize_mean+maize_sd),colour="grey", width=.1, alpha=0.8) +
   geom_errorbar(aes(ymin=wheat_mean-wheat_sd, ymax=wheat_mean+wheat_sd), colour="grey", width=.1, alpha=0.8) +
   labs(size="Elevation (m)", colour="Maize genotype", shape="") +
@@ -394,7 +401,7 @@ df %>%
   scale_shape(solid = FALSE) +
   facet_grid(.~thisCultivar) +
   geom_hline(yintercept = 0, linetype = 2) +
-  ylab("Climate change impact on \naccumulated crop rotation yield (t/ha)") +
+  ylab("Climate change impact on accumulated \ncrop rotation yield (t DM/ha)") +
   xlab("Elevation (m above sea level)") +
   theme(text=element_text(size=18))+
   labs(colour="Adaptation", shape="Land use class") +
@@ -428,7 +435,7 @@ df_worked %>%
   filter(thisCrop=="wheat") %>%
   dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,PTleach,PTcropn ) %>%
   group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
-  summarise_each(funs(mean))  %>%
+  summarise_all(funs(mean))  %>%
   summary()
   
 ```
@@ -438,7 +445,7 @@ df_worked %>%
   filter(thisCrop == "maize") %>%
     dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,HarvestIndex ) %>%
   group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
-  summarise_each(funs(mean))  %>%
+  summarise_all(funs(mean))  %>%
   tidyr::spread(Adaptation,HarvestIndex) %>%
   summary()
 ```
@@ -451,7 +458,7 @@ df_worked %>%
   filter(thisGCM !="ERA") %>%
   dplyr::select(thisLat,thisLong,thisScenario,Adaptation, thisCultivar,PTcropn, HarvestIndex) %>%
   group_by(thisLat,thisLong,thisScenario,Adaptation, thisCultivar) %>%
-  summarise_each(funs(mean)) %>%
+  summarise_all(funs(mean)) %>%
   tidyr::gather(VarName,VarValue, PTcropn:HarvestIndex) %>%
   ggplot(aes(x=Adaptation,y=VarValue)) +
   geom_boxplot() +
@@ -469,7 +476,7 @@ df_worked %>%
   filter(Adaptation =="Adapted sow") %>%
   dplyr::select(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar,PTcropn) %>%
   group_by(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar) %>%
-  summarise_each(funs(mean,sd)) %>%
+  summarise_all(funs(mean,sd)) %>%
   ggplot(aes(x=thisLat,y=mean,colour=thisCultivar))+
   geom_point(alpha=0.2, aes(size=Altitude_masl)) +
 #  geom_boxplot() +
@@ -495,7 +502,7 @@ table_support_vars <- df_worked %>%
                 TempCycleAve, SowingDOY,
                 GrowthLength,GrowthRate, IntRadSum,RUEtop,                          HarvestIndex,PTcropn) %>%
   group_by(thisLat,thisLong,ScenLabel, AdaptLabel, thisCrop,   thisCultivar) %>%
-  summarise_each(funs(mean)) %>%
+  summarise_all(funs(mean)) %>%
   tidyr::gather("VarName", "VarValue", TempCycleAve:PTcropn) 
 
 
@@ -504,7 +511,7 @@ table_support_vars <- df_worked %>%
 #   filter(ScenLabel=="Base")  %>%  
 #   group_by(VarName,thisCrop,thisCultivar) %>%
 #   dplyr::select(-Altitude_masl, -year,-AdaptLabel,-ScenLabel,-thisLat,-thisLong) %>%
-#   summarise_each(funs(mean)) %>%
+#   summarise_all(funs(mean)) %>%
 #   mutate(VarValue=round(VarValue,2)) %>%
 #   tidyr::spread(thisCultivar,VarValue) 
 
@@ -514,7 +521,7 @@ tb_base <- table_support_vars %>%
   group_by(VarName,thisCrop,thisCultivar) %>%
   filter(thisCultivar == "long")  %>% # using long as example
   dplyr::select( -Altitude_masl,-year,-AdaptLabel,-ScenLabel,-thisLat,-thisLong) %>%
-  summarise_each(funs(min,mean,max)) %>%
+  summarise_all(funs(min,mean,max)) %>%
   mutate(min=round(min,2),mean=round(mean,2),max=round(max,2))
 
 write.csv(tb_base,paste0(saveFolder,"Table_UnderVars_Base.csv"))  
@@ -540,7 +547,7 @@ tb_base
 #   dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
 #   group_by(VarName, thisCrop) %>%  
 #   dplyr::select(-thisLat, -thisLong) %>%
-#   summarise_each(funs(mean,min,max)) %>%
+#   summarise_all(funs(mean,min,max)) %>%
 #   tidyr::gather("DiffName","VarValue",diff_short_mean:diff_long_max) %>% 
 #   mutate(VarValue=round(VarValue,2)) %>%
 #   separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
@@ -567,7 +574,7 @@ spread(GroupVar, VarValue) %>%
   dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
   group_by(VarName, thisCrop) %>%  
   dplyr::select(-thisLat, -thisLong) %>%
-  summarise_each(funs(min,mean,max)) %>% # FIXME: do quantiles
+  summarise_all(funs(min,mean,max)) %>% # FIXME: do quantiles
   tidyr::gather("DiffName","VarValue",diff_short_min:diff_long_max) %>% 
   mutate(VarValue=round(VarValue,2)) %>%
   separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
