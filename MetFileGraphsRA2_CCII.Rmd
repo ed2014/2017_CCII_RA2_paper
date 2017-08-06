@@ -11,7 +11,7 @@ output: html_document
 - graph averages
 - Derived from original at:C:\apsim_dev\Projects\CCII\RA2_CaseStudy\source\MetFileGraphs(RA2).Rmd
 
-```{r}
+```{r, warning=FALSE}
 #devtools::install_github("dkahle/ggmap")
 #devtools::install_github("hadley/ggplot2")
 library(tcltk2)
@@ -50,7 +50,7 @@ summary(DATA)
 df <- DATA %>%
   mutate(timeSlice = as.factor(paste0("ts_",timeSlice))) %>% # avoid start of factor name with number
   group_by(row, col, gcmStp, rcpStp, timeSlice) %>% 
-  summarise_each(funs(mean)) %>%
+  summarise_all(funs(mean)) %>%
   dplyr::select(-X, -X.1,-skip,-fileNo, -year, -day) %>% # must remove otherwise
   mutate(rain = rain*365, radn = radn*365) %>% # change to annual values
   tidyr::gather("Variable", "VarValue", maxt:co2) %>%
@@ -160,22 +160,21 @@ Create difference of time-slice averages per pixel (valid for GCM only)
 diff.timeSlice.per.pixel <- av.per.pixel %>%
   dplyr::select(-timeSlice)%>%
   tidyr::spread(timeSliceName, VarValue)  %>%
-  mutate(diff_mid_a = ts_b_midCentury - ts_a_base,
-         diff_end_a = ts_c_endCentury - ts_a_base,
-         diff_mid_r = ts_b_midCentury/ts_a_base*100-100,
+  # mutate(diff_mid_a = ts_b_midCentury - ts_a_base,
+  #        diff_end_a = ts_c_endCentury - ts_a_base,
+  #        diff_mid_r = ts_b_midCentury/ts_a_base*100-100,
+  #        diff_end_r = ts_c_endCentury/ts_a_base*100-100
+  #        ) %>%
+    mutate(diff_end_a = ts_c_endCentury - ts_a_base,
          diff_end_r = ts_c_endCentury/ts_a_base*100-100
          ) %>%
-  tidyr::gather("Diff_type", "DiffValue", diff_mid_a:diff_end_r) %>%
+  tidyr::gather("Diff_type", "DiffValue", diff_end_a:diff_end_r) %>%
   mutate(Diff_type = as.factor(Diff_type)) %>%
   mutate(Diff_typeName = factor(Diff_type,
                             levels=c("diff_end_a",
-                                     "diff_end_r",
-                                     "diff_mid_a",
-                                     "diff_mid_r"),
+                                     "diff_end_r"),
                             labels=c("End-century (absolute)", 
-                           "End-century", 
-                           "Mid-century (absolute)", 
-                           "Mid-century")))
+                           "End-century")))
 
 #head(diff.timeSlice.per.pixel)
 summary(diff.timeSlice.per.pixel)
@@ -190,14 +189,16 @@ write.csv(diff.timeSlice.per.pixel, file = paste0(folderName,"DiffPerPixel.csv")
 - RCP 8.5
 - End-century only
 
-```{r, fig.height=10, fig.width=12}
+```{r}
 
 # create subset for paper
 temp1 <- diff.timeSlice.per.pixel %>%
+  ungroup() %>%
   filter(rcpStp == "RCP85") %>% # for paper
   filter(Variable != "co2") %>% 
   filter(Diff_typeName == "End-century (absolute)") %>%
-  mutate(gridCell = as.factor(paste0(row,"_", col))) %>%
+  mutate(gridCell = (paste0(row,"_", col))) %>%
+  mutate(gridCell=as.factor(gridCell)) %>%
   mutate(GCMs = gcmStp) %>%
   mutate(BaseValue = ts_a_base) %>%
   dplyr::select(row, col, Variable, GCMs, BaseValue, DiffValue) %>%
@@ -205,25 +206,30 @@ temp1 <- diff.timeSlice.per.pixel %>%
   mutate(VarType = factor(VarType, levels = c("BaseValue","DiffValue"), 
                           labels=c("Baseline value","Climate change impact") ))
 
+str(temp1)
+
 summary(temp1)
 
+```
 
+```{r}
 # find averages
 avs4 <- temp1 %>% 
-  group_by(rcpStp,Variable, VarType) %>% 
+  group_by(Variable, VarType) %>% 
   summarise(mean=mean(VarValue))
 
 summary(avs4)
+```
 
+```{r, fig.height=10, fig.width=12}
 # plot
 temp1 %>%
   ggplot(aes(VarValue, fill = GCMs, colour = GCMs)) +
-  geom_density(alpha = 0.2) +
+  geom_density(alpha = 0.2, aes(y=..scaled..)) +
   facet_wrap(Variable~VarType, scales = "free", ncol = 2) +
     xlab("Average weather variables for 20-year analysis period") +
   ylab("Distribution across catchment area" ) + 
   geom_vline(aes(xintercept=mean),avs4,linetype = 2)
-
 ```
 
 # Show values for writing materials and methods in paper
