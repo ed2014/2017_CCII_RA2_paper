@@ -142,9 +142,22 @@ mapData_01 %>%
   dplyr::select(thisCrop,thisCultivar, TotalBiomass) %>%
   summarise_all(funs(max)) %>%
   tidyr::spread(thisCultivar,TotalBiomass) %>%
-  mutate(shortEffect=(short-long)/long*100)
+  mutate(shortEffect=round((long-short)/short*100,0))
 
 ```
+
+# how much short 
+
+```{r}
+mapData_01 %>%
+  group_by(thisCrop,thisCultivar) %>%
+  dplyr::select(thisCrop,thisCultivar, TotalBiomass) %>%
+  summarise_all(funs(min)) %>%
+  tidyr::spread(thisCultivar,TotalBiomass) %>%
+  mutate(shortEffect=round((long-short)/short*100,0))
+```
+
+
 
 # Calculate climate change impacts on yield 
 
