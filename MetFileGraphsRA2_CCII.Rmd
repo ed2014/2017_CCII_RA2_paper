@@ -11,7 +11,7 @@ output: html_document
 - graph averages
 - Derived from original at:C:\apsim_dev\Projects\CCII\RA2_CaseStudy\source\MetFileGraphs(RA2).Rmd
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, include =FALSE}
 #devtools::install_github("dkahle/ggmap")
 #devtools::install_github("hadley/ggplot2")
 library(tcltk2)
@@ -52,16 +52,17 @@ df <- DATA %>%
   group_by(row, col, gcmStp, rcpStp, timeSlice) %>% 
   summarise_all(funs(mean)) %>%
   dplyr::select(-X, -X.1,-skip,-fileNo, -year, -day) %>% # must remove otherwise
-  mutate(rain = rain*365, radn = radn*365) %>% # change to annual values
+  mutate(rain = rain*365) %>% # change to annual values , radn = radn*365
   tidyr::gather("Variable", "VarValue", maxt:co2) %>%
   mutate(Variable = as.factor(Variable)) %>%
   mutate(VariableName = factor(Variable))%>%
-  mutate(Variable = factor(Variable,levels= c("co2","mint","maxt","rain","radn"), 
-                           labels=c("co2","Minimum temperature (oC)",
-                                   "Maximum temperature (oC)", 
-                                   "Rainfall (mm/year)",
-                                   "Solar radiation (MJ/m2/year)" 
+  mutate(Variable = factor(Variable,levels= c("co2","mint","maxt","rain","radn"),
+                           labels=c("co2","Minimum temperature",
+                                   "Maximum temperature",
+                                   "Rainfall",
+                                   "Solar radiation"
                                   ))) %>%
+#  mutate(Variable = factor(Variable,levels= c("co2","mint","maxt","rain","radn"))) %>%
   mutate(timeSliceName = factor(timeSlice)) %>%
   mutate(timeSlice = factor(timeSlice,levels = c("ts_a_base","ts_b_midCentury","ts_c_endCentury"), 
                             labels=c("Baseline", "Mid-century", "End-century")))
@@ -75,6 +76,7 @@ av.per.pixel <- df %>%
 
 summary(av.per.pixel)
 
+#x <- c("PM[10]","SO[2]", "NO", "NO[2]")
 
 ```
 
@@ -135,6 +137,8 @@ write.csv(av_cv_abs, file = paste0(workDirName,"ClimateDataPerPixel_av_cv_CCII_R
 ## Graph for supplement
 
 ```{r, fig.height=8, fig.width=12}
+
+
 # graph averages
 av.per.pixel  %>%
   dplyr::filter(Variable !="co2") %>%
@@ -142,7 +146,7 @@ av.per.pixel  %>%
   geom_boxplot(alpha=0.5) +
   geom_violin(alpha=0) +
   geom_jitter(size=0.5) +
-  facet_wrap(timeSlice~Variable, scales = "free",  ncol = 4) +
+  facet_wrap(timeSlice~Variable, scales = "free",  ncol = 4) + #,labeller = label_parsed
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(legend.position="none") +
   xlab("Climate model") +
@@ -182,6 +186,26 @@ summary(diff.timeSlice.per.pixel)
 write.csv(diff.timeSlice.per.pixel, file = paste0(folderName,"DiffPerPixel.csv"))
 
 ```
+Subset for map 
+
+- Only absolute differences
+- 
+```{r}
+# Subset of data for Anne-gaelle for Supplement 
+
+gcm.var.per.pixel.subset <- diff.timeSlice.per.pixel %>%
+  filter(Diff_type == "diff_end_a") %>%
+  filter(VariableName != "co2") %>%
+ # filter(rcpStp == "RCP85")%>%
+  dplyr::select(-Diff_typeName,-ts_a_base,-ts_c_endCentury)
+
+summary(gcm.var.per.pixel.subset)
+
+write.csv(diff.timeSlice.per.pixel, file = paste0(folderName,"DiffPerPixel_subset.csv"), row.names = FALSE)
+
+```
+
+
 
 # Show distribution of baseline + RCP 8.5 changes
 
@@ -219,9 +243,30 @@ avs4 <- temp1 %>%
   summarise(mean=mean(VarValue))
 
 summary(avs4)
+
+
+
+
+```
+# find mode value
+```{r}
+# Create the model function.
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+modeV <- temp1 %>% 
+  group_by(Variable, VarType) %>% 
+  summarise(mode=getmode(VarValue))
+
+summary(modeV)
 ```
 
+
+
 ```{r, fig.height=10, fig.width=12}
+
 # plot
 temp1 %>%
   ggplot(aes(VarValue, fill = GCMs, colour = GCMs)) +
@@ -229,7 +274,8 @@ temp1 %>%
   facet_wrap(Variable~VarType, scales = "free", ncol = 2) +
     xlab("Average weather variables for 20-year analysis period") +
   ylab("Distribution across catchment area" ) + 
-  geom_vline(aes(xintercept=mean),avs4,linetype = 2)
+  geom_vline(aes(xintercept=mean),avs4,linetype = 2) +
+  geom_vline(aes(xintercept=mode),modeV,linetype = 3)
 ```
 
 # Show values for writing materials and methods in paper
@@ -254,7 +300,7 @@ temp1 %>%
 
 ## GCM diffs per "time-slice deltas" within grid cell
 
-- it only makes sense to compare the variability in "deltas" as teh absolute valuaes are inherently different among GCMs 
+- it only makes sense to compare the variability in "deltas" as the absolute values are inherently different among GCMs 
 
 ```{r rasteriseAverages}
 
@@ -264,16 +310,16 @@ gcm.var.per.pixel <- diff.timeSlice.per.pixel %>%
  # mutate(gridCell = as.factor(paste0(row,"_", col))) %>%
   group_by(thisLat, thisLong, rcpStp, Variable, Diff_type) %>%
   dplyr::select(thisLat, thisLong, rcpStp, Variable, Diff_type,DiffValue) %>%
-  summarise_each(funs(mean,sd)) %>%
+  summarise_all(funs(mean,sd)) %>%
   mutate(cv = sd/mean*100) %>%
   tidyr::gather("Stats","StatsValue",mean:cv) %>%
-  mutate(Stats = as.factor(Stats))%>%
-  mutate(thisPixel =factor( paste0(thisLat,"_",thisLong)))
+  mutate(Stats = as.factor(Stats))
 
 #head(gcm.var.per.pixel)
 summary(gcm.var.per.pixel)
 
-write.csv(gcm.var.per.pixel, file =paste0(folderName,"RasterOutput(RA2)_stats_GCMs.csv"))
+write.csv(gcm.var.per.pixel, file =paste0(folderName,"RasterOutput(RA2)_stats_GCMs.csv"), row.names = FALSE)
+
 
 ```
 

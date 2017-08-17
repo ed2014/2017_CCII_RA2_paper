@@ -63,7 +63,7 @@ print(paste0("Number of selected data-points: ", nrow(data_kai)))
 
 ## Sowing date
 
-```{r, fig.height=4, fig.width=12, echo=FALSE}
+```{r, fig.height=4, fig.width=12, echo=FALSE, warning=FALSE}
 
 s <- 16 # font size so all graphs have the same
 
@@ -145,4 +145,24 @@ g
 
 ```
 
+# Factors delaying sowing dates
+
+```{r}
+data_kai %>%
+  dplyr::select(RegionName, ColdTemp, WetSoil, DrySoil, NoMachine, FrostRisk) %>%
+  mutate(LowTemp=ColdTemp+FrostRisk, Others=NoMachine+DrySoil) %>%
+  dplyr::select(-ColdTemp,-FrostRisk,-DrySoil,-NoMachine) %>%
+#  tidyr::gather("DelayFactor","n", 2:6) %>%
+  tidyr::gather("DelayFactor","n", WetSoil:Others) %>%
+#  mutate(DelayFactor =  reorder(DelayFactor, n)) %>%
+  mutate(DelayFactor =  factor(DelayFactor, 
+                               levels=c("WetSoil", "LowTemp", "Others"), 
+                               label=c("Wet Soil","Low Temperatures","Other factors"))) %>%
+  ggplot(aes(x=DelayFactor, y=n)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+ # facet_wrap(~DelayFactor, ncol=6) +
+  xlab("Factors that delay sowing date") +
+  ylab("Number of respondents") 
+```
 
