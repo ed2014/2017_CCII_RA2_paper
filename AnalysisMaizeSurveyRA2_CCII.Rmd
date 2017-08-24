@@ -148,7 +148,7 @@ g
 # Factors delaying sowing dates
 
 ```{r}
-data_kai %>%
+g1 <- data_kai %>%
   dplyr::select(RegionName, ColdTemp, WetSoil, DrySoil, NoMachine, FrostRisk) %>%
   mutate(LowTemp=ColdTemp+FrostRisk, Others=NoMachine+DrySoil) %>%
   dplyr::select(-ColdTemp,-FrostRisk,-DrySoil,-NoMachine) %>%
@@ -157,12 +157,98 @@ data_kai %>%
 #  mutate(DelayFactor =  reorder(DelayFactor, n)) %>%
   mutate(DelayFactor =  factor(DelayFactor, 
                                levels=c("WetSoil", "LowTemp", "Others"), 
-                               label=c("Wet Soil","Low Temperatures","Other factors"))) %>%
+                               label=c("Wet \nsoil","Low \ntemperatures","Other \nfactors"))) %>%
   ggplot(aes(x=DelayFactor, y=n)) +
   geom_bar(stat="identity") +
-  coord_flip() +
+ # coord_flip() +
  # facet_wrap(~DelayFactor, ncol=6) +
   xlab("Factors that delay sowing date") +
   ylab("Number of respondents") 
+```
+Yield
+```{r}
+
+g2 <- data_kai %>%
+  dplyr::select(Silage_Yield_Low_Adj, Silage_Yield_Med_Adj,Silage_Yield_High_Adj) %>%
+  tidyr::gather("Category","value", Silage_Yield_Low_Adj, Silage_Yield_Med_Adj,Silage_Yield_High_Adj) %>%
+ # mutate(CRMcat = as.factor(CRMcat)) %>%
+  mutate(Category = factor(Category,
+                           levels=c("Silage_Yield_Low_Adj",
+                                    "Silage_Yield_Med_Adj",
+                                    "Silage_Yield_High_Adj"), 
+                           labels=c("Low-yielding \nyears","Most years","High-yielding \nyears") )) %>%
+  na.omit() %>%
+#  mutate(RegionName =  reorder(RegionName, value)) %>%
+  group_by(Category) %>%
+  summarise_all(funs(mean,sd)) %>%
+  ggplot(aes(x=Category, y=mean)) +
+  geom_bar(stat="identity") +
+   geom_errorbar(aes(ymax = mean+sd/2, ymin = mean-sd/2), 
+                 position=position_dodge(width=0.9), width=0.15)+
+ # coord_flip() +
+ # facet_wrap(~DelayFactor, ncol=6) +
+  xlab("Silage yield category") +
+  ylab("Silage biomass estimated \nby respondents (t DM/ha)") 
+  
+  
+
+```
+
+Multi facet graph
+
+```{r}
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
+```
+
+```{r}
+#Do it
+multiplot(g1, g2, cols=2)
 ```
 
