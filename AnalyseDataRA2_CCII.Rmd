@@ -336,10 +336,10 @@ av_sd_y_diff %>%
          maize_sd = as.numeric(maize_sd),
          wheat_sd = as.numeric(wheat_sd)) %>%
   ggplot(aes(x=maize_mean, y=wheat_mean, colour=factor(thisCultivar))) +
-  annotate("rect", xmin = mn, xmax = 0, ymin = mn, ymax = 0, alpha=0.05, fill="red") +
-  annotate("rect", xmin = 0, xmax = mx, ymin = 0, ymax = mx, alpha=0.05, fill="green") +
-  annotate("rect", xmin = mn, xmax = 0, ymin = 0, ymax = mx, alpha=0.05, fill="yellow") +
-  annotate("rect", xmin = 0, xmax = mx, ymin = mn, ymax = 0, alpha=0.05, fill="yellow") +
+  annotate("rect", xmin = mn, xmax = 0, ymin = mn, ymax = 0, alpha=0.1, fill="red") +
+  annotate("rect", xmin = 0, xmax = mx, ymin = 0, ymax = mx, alpha=0.1, fill="green") +
+  annotate("rect", xmin = mn, xmax = 0, ymin = 0, ymax = mx, alpha=0.1, fill="yellow") +
+  annotate("rect", xmin = 0, xmax = mx, ymin = mn, ymax = 0, alpha=0.1, fill="yellow") +
   geom_point(aes(size = as.numeric(Altitude_masl), shape=thisCultivar), alpha=1) +
   scale_shape(solid = FALSE) +
   facet_wrap(~Adaptation, scales = "free") + 
@@ -483,28 +483,34 @@ df_worked %>%
 
 # plot against average temperature in the pixel
 
-df_worked %>%
-  filter(thisCrop == "wheat") %>%
-  filter(thisGCM !="ERA") %>%
-  filter(Adaptation =="Adapted sow") %>%
-  dplyr::select(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar,PTcropn) %>%
-  group_by(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar) %>%
-  summarise_all(funs(mean,sd)) %>%
-  ggplot(aes(x=thisLat,y=mean,colour=thisCultivar))+
-  geom_point(alpha=0.2, aes(size=Altitude_masl)) +
-#  geom_boxplot() +
-  geom_smooth(aes(fill=thisCultivar)) +
-  facet_grid(Adaptation~thisScenario, scales = 'free') 
+# df_worked %>%
+#   filter(thisCrop == "wheat") %>%
+#   filter(thisGCM !="ERA") %>%
+#   filter(Adaptation =="Adapted sow") %>%
+#   dplyr::select(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar,PTcropn) %>%
+#   group_by(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar) %>%
+#   summarise_all(funs(mean,sd)) %>%
+#   ggplot(aes(x=thisLat,y=mean,colour=thisCultivar))+
+#   geom_point(alpha=0.2, aes(size=Altitude_masl)) +
+# #  geom_boxplot() +
+#   geom_smooth(aes(fill=thisCultivar)) +
+#   facet_grid(Adaptation~thisScenario, scales = 'free') 
 ```
 ## Get extra explanatory variables for t
 
-- Table in paper
+- Table 1 in paper
+
+- Ranges of different support variables
+
+- All time-slices and adaptation scenarios
+
 ```{r, fig.height=12, fig.width=12}
 saveFolder <- "\\\\Lin-file\\home$\\cfleit\\My Documents\\My papers\\2016_CCII_Assessment\\" 
 
 table_support_vars <- df_worked %>%
   mutate(AdaptLabel=factor(Adaptation,
-                           levels= c("Not adapted sow", "Adapted sow"),
+                         #  levels= c("Not adapted sow", "Adapted sow"),
+                         levels= c("NotAdaptedSow", "AdaptedSow"),
                             labels=c("NotAdapt","Adapt"))) %>%
     mutate(ScenLabel=factor(thisScenario,
                            levels= c("Baseline", "End-century"),
@@ -527,7 +533,14 @@ table_support_vars <- df_worked %>%
 #   summarise_all(funs(mean)) %>%
 #   mutate(VarValue=round(VarValue,2)) %>%
 #   tidyr::spread(thisCultivar,VarValue) 
+head(table_support_vars)
+```
 
+# Isolate and average baseline values of support variables
+
+- used to copy/paste to table in paper
+
+```{r}
 # with ranges
 tb_base <- table_support_vars %>%
   filter(ScenLabel=="Base")  %>%  
@@ -535,19 +548,24 @@ tb_base <- table_support_vars %>%
   filter(thisCultivar == "long")  %>% # using long as example
   dplyr::select( -Altitude_masl,-year,-AdaptLabel,-ScenLabel,-thisLat,-thisLong) %>%
   summarise_all(funs(min,mean,max)) %>%
-  mutate(min=round(min,2),mean=round(mean,2),max=round(max,2))
+  mutate(min=round(min,2),mean=round(mean,2),max=round(max,2))%>%
+  ungroup() %>%
+  mutate(VarName=factor(VarName))
 
 write.csv(tb_base,paste0(saveFolder,"Table_UnderVars_Base.csv"))  
 
-tb_base
-
+summary(tb_base)
 ```
 
-## Difference for future
+## Difference of adaptation effect for future
+
+- This is the effect of adaptation in future sce
+
+- FIXME: Can simplify depending on how baseline is for adapt/non-adapt - check
 
 ```{r}
 # original table
-# tb_fut_adaptEffect <- table_support_vars %>%  
+# tb_fut_adaptEffect <- table_support_vars %>%
 # dplyr::select(-Altitude_masl, -year) %>%
 # ungroup() %>%
 # unite("GroupVar",ScenLabel,thisCultivar, AdaptLabel) %>%
@@ -558,12 +576,12 @@ tb_base
 #     diff_short = round(diff_short,2),
 #     diff_long = round(diff_long,2)) %>%
 #   dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
-#   group_by(VarName, thisCrop) %>%  
+#   group_by(VarName, thisCrop) %>%
 #   dplyr::select(-thisLat, -thisLong) %>%
 #   summarise_all(funs(mean,min,max)) %>%
-#   tidyr::gather("DiffName","VarValue",diff_short_mean:diff_long_max) %>% 
+#   tidyr::gather("DiffName","VarValue",diff_short_mean:diff_long_max) %>%
 #   mutate(VarValue=round(VarValue,2)) %>%
-#   separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
+#   separate(DiffName,c("diff","cult","stat"),sep="_") %>%
 #   dplyr::select(-diff) %>%
 #   tidyr::spread(stat,VarValue) %>%
 #   mutate(AdaptEffect = mean)%>%
@@ -579,6 +597,8 @@ dplyr::select(-Altitude_masl, -year) %>%
 ungroup() %>%
 unite("GroupVar",ScenLabel,thisCultivar, AdaptLabel) %>% 
 spread(GroupVar, VarValue) %>%
+# Calculates the diference in "adaptation effect" on climate change impacts
+# Adaptation effect is the difference between "non-adapted" and "adapted"
   mutate(
     diff_short = (End_short_Adapt-Base_short_Adapt)-(End_short_NotAdapt-Base_short_Adapt),
     diff_long =  (End_long_Adapt-Base_long_Adapt)-(End_long_NotAdapt-Base_long_Adapt),

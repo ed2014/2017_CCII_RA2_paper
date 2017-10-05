@@ -1,6 +1,8 @@
 ---
 title: "MetFileGraphs"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ## Average per pixel
