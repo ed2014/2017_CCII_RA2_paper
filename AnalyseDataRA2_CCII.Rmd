@@ -377,7 +377,7 @@ av_sd_y_diff %>%
 
 ## Do total crop biomass per rotation
 
-- sum up absolute climate change impact of maize and wheat
+- Sum up absolute climate change impact of maize and wheat
 
 ```{r}
 
@@ -410,7 +410,7 @@ summary(df)
 
 
 ```
-
+## Plot total biomass change rotation 
 ```{r, fig.height=6, fig.width=12}
 
 
