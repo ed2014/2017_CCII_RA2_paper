@@ -545,8 +545,10 @@ spread(GroupVar, VarValue) %>%
 # Calculates the diference in "adaptation effect" on climate change impacts
 # Adaptation effect is the difference between "non-adapted" and "adapted"
   mutate(
-    diff_short = (End_short_Adapt-Base_short_Adapt)-(End_short_NotAdapt-Base_short_Adapt),
-    diff_long =  (End_long_Adapt-Base_long_Adapt)-(End_long_NotAdapt-Base_long_Adapt),
+    # diff_short = (End_short_Adapt-Base_short_Adapt)-(End_short_NotAdapt-Base_short_Adapt),
+    # diff_long =  (End_long_Adapt-Base_long_Adapt)-(End_long_NotAdapt-Base_long_Adapt),
+    diff_short = End_short_Adapt-End_short_NotAdapt,
+    diff_long =  End_long_Adapt-End_long_NotAdapt,
     diff_short = round(diff_short,2),
     diff_long = round(diff_long,2)) %>%
   dplyr::select(thisLat,thisLong,thisCrop,VarName, diff_short, diff_long) %>%
@@ -557,10 +559,11 @@ spread(GroupVar, VarValue) %>%
   mutate(VarValue=round(VarValue,2)) %>%
   separate(DiffName,c("diff","cult","stat"),sep="_") %>%  
   dplyr::select(-diff) %>%
+  mutate(stat=factor(stat,levels=c("min","mean","max"))) %>%
   tidyr::spread(stat,VarValue) %>%
   filter(cult=="long") %>% # using long as example
   ungroup() %>%
-  mutate(VarName=factor(VarName, levels=orF)) # FIXME: how to print table in factor order instead of alphabetical?
+  mutate(VarName=factor(VarName,levels=varOrder)) # FIXME: how to print table in factor order instead of alphabetical?
 
 # orF <- c("TempCycleAve","SowingDOY","GrowthLength","GrowthRate","IntRadSum","RUEtop", "HarvestIndex","PTcropn" )
 # 
@@ -588,9 +591,6 @@ df_worked %>%
   facet_wrap(VarName~thisScenario, ncol=2, scales = 'free') +
   geom_jitter(aes(colour=thisCultivar))
 ```
-
-
-
 
 ## How do relative and absolute yield changes compare?
 
