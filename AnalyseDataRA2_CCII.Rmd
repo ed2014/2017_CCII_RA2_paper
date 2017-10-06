@@ -435,82 +435,9 @@ df %>%
   geom_errorbar(aes(ymin=totBioDiff-totSdDiff, ymax=totBioDiff+totSdDiff, colour=Adaptation), width=.1, alpha=0.8)
 ```
 
-## How do relative and absolute yield changes compare?
-
-- used in discussion
-
-```{r}
-df_bio_diff %>%
-  group_by(thisCrop) %>%
-  ggplot(aes(x=TotalBiomass_Base, y=diff_CC_rel, colour=thisCrop)) +
-  geom_point()+
-  facet_wrap(~thisCrop, scales = 'free')
-```
-
-```{r}
-df_bio_diff %>%
-  group_by(thisCrop) %>%
-  ggplot(aes(x=diff_CC_rel, y=diff_CC_abs, colour=thisCrop)) +
-  geom_point()+
-  facet_grid(.~thisCrop, scales = 'free')
-```
-
-## How much catch crop removed
-
-```{r}
-df_worked %>%
-  filter(thisCrop=="wheat") %>%
-  dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,PTleach,PTcropn ) %>%
-  group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
-  summarise_all(funs(mean))  %>%
-  summary()
-  
-```
-
-```{r}
-df_worked %>%
-  filter(thisCrop == "maize") %>%
-    dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,HarvestIndex ) %>%
-  group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
-  summarise_all(funs(mean))  %>%
-  tidyr::spread(Adaptation,HarvestIndex) %>%
-  summary()
-```
-
 ## Table with quality and environmental aspects
 
-```{r}
-df_worked %>%
-  filter(thisCrop == "maize") %>%
-  filter(thisGCM !="ERA") %>%
-  dplyr::select(thisLat,thisLong,thisScenario,Adaptation, thisCultivar,PTcropn, HarvestIndex) %>%
-  group_by(thisLat,thisLong,thisScenario,Adaptation, thisCultivar) %>%
-  summarise_all(funs(mean)) %>%
-  tidyr::gather(VarName,VarValue, PTcropn:HarvestIndex) %>%
-  ggplot(aes(x=Adaptation,y=VarValue)) +
-  geom_boxplot() +
-  facet_wrap(VarName~thisScenario, ncol=2, scales = 'free') +
-  geom_jitter(aes(colour=thisCultivar))
-```
-
-```{r, fig.height=6, fig.width=12}
-
-# plot against average temperature in the pixel
-
-# df_worked %>%
-#   filter(thisCrop == "wheat") %>%
-#   filter(thisGCM !="ERA") %>%
-#   filter(Adaptation =="Adapted sow") %>%
-#   dplyr::select(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar,PTcropn) %>%
-#   group_by(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar) %>%
-#   summarise_all(funs(mean,sd)) %>%
-#   ggplot(aes(x=thisLat,y=mean,colour=thisCultivar))+
-#   geom_point(alpha=0.2, aes(size=Altitude_masl)) +
-# #  geom_boxplot() +
-#   geom_smooth(aes(fill=thisCultivar)) +
-#   facet_grid(Adaptation~thisScenario, scales = 'free') 
-```
-## Get extra explanatory variables for t
+- Get extra explanatory variables for table
 
 - Table 1 in paper
 
@@ -519,7 +446,10 @@ df_worked %>%
 - All time-slices and adaptation scenarios
 
 ```{r, fig.height=12, fig.width=12}
+
 saveFolder <- "\\\\Lin-file\\home$\\cfleit\\My Documents\\My papers\\2016_CCII_Assessment\\" 
+
+varOrder<- c("TempCycleAve","SowingDOY","GrowthLength","GrowthRate","IntRadSum","RUEtop", "HarvestIndex","PTcropn") # for paper
 
 table_support_vars <- df_worked %>%
   mutate(AdaptLabel=factor(Adaptation,
@@ -536,7 +466,8 @@ table_support_vars <- df_worked %>%
                 GrowthLength,GrowthRate, IntRadSum,RUEtop,                          HarvestIndex,PTcropn) %>%
   group_by(thisLat,thisLong,ScenLabel, AdaptLabel, thisCrop,   thisCultivar) %>%
   summarise_all(funs(mean)) %>%
-  tidyr::gather("VarName", "VarValue", TempCycleAve:PTcropn) 
+  tidyr::gather("VarName", "VarValue", TempCycleAve:PTcropn)  %>%
+  mutate(VarName=factor(VarName,levels=varOrder))
 
 
 # Base values
@@ -640,6 +571,88 @@ write.csv(tb_fut_adaptEffect,paste0(saveFolder,"Table_UnderVars.csv"))
   
 summary(tb_fut_adaptEffect)  
 ```
+
+
+
+
+```{r}
+df_worked %>%
+  filter(thisCrop == "maize") %>%
+  filter(thisGCM !="ERA") %>%
+  dplyr::select(thisLat,thisLong,thisScenario,Adaptation, thisCultivar,PTcropn, HarvestIndex) %>%
+  group_by(thisLat,thisLong,thisScenario,Adaptation, thisCultivar) %>%
+  summarise_all(funs(mean)) %>%
+  tidyr::gather(VarName,VarValue, PTcropn:HarvestIndex) %>%
+  ggplot(aes(x=Adaptation,y=VarValue)) +
+  geom_boxplot() +
+  facet_wrap(VarName~thisScenario, ncol=2, scales = 'free') +
+  geom_jitter(aes(colour=thisCultivar))
+```
+
+
+
+
+## How do relative and absolute yield changes compare?
+
+- used in discussion
+
+```{r}
+df_bio_diff %>%
+  group_by(thisCrop) %>%
+  ggplot(aes(x=TotalBiomass_Base, y=diff_CC_rel, colour=thisCrop)) +
+  geom_point()+
+  facet_wrap(~thisCrop, scales = 'free')
+```
+
+```{r}
+df_bio_diff %>%
+  group_by(thisCrop) %>%
+  ggplot(aes(x=diff_CC_rel, y=diff_CC_abs, colour=thisCrop)) +
+  geom_point()+
+  facet_grid(.~thisCrop, scales = 'free')
+```
+
+## How much catch crop removed
+
+```{r}
+df_worked %>%
+  filter(thisCrop=="wheat") %>%
+  dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,PTleach,PTcropn ) %>%
+  group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
+  summarise_all(funs(mean))  %>%
+  summary()
+  
+```
+
+```{r}
+df_worked %>%
+  filter(thisCrop == "maize") %>%
+    dplyr::select(thisScenario,Adaptation, thisGCM, thisCultivar,thisSoil,HarvestIndex ) %>%
+  group_by(thisScenario,Adaptation, thisGCM, thisCultivar, thisSoil) %>%
+  summarise_all(funs(mean))  %>%
+  tidyr::spread(Adaptation,HarvestIndex) %>%
+  summary()
+```
+
+
+```{r, fig.height=6, fig.width=12}
+
+# plot against average temperature in the pixel
+
+# df_worked %>%
+#   filter(thisCrop == "wheat") %>%
+#   filter(thisGCM !="ERA") %>%
+#   filter(Adaptation =="Adapted sow") %>%
+#   dplyr::select(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar,PTcropn) %>%
+#   group_by(thisLat,thisLong,year,Altitude_masl, thisScenario,Adaptation, thisCultivar) %>%
+#   summarise_all(funs(mean,sd)) %>%
+#   ggplot(aes(x=thisLat,y=mean,colour=thisCultivar))+
+#   geom_point(alpha=0.2, aes(size=Altitude_masl)) +
+# #  geom_boxplot() +
+#   geom_smooth(aes(fill=thisCultivar)) +
+#   facet_grid(Adaptation~thisScenario, scales = 'free') 
+```
+
 
 graph test
 
