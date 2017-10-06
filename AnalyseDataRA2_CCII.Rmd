@@ -135,6 +135,8 @@ mapData_01 %>%
 
 ## How much a short cycle maize affected yields?
 
+- MAXIMUM
+
 ```{r}
 
 mapData_01 %>%
@@ -146,7 +148,7 @@ mapData_01 %>%
 
 ```
 
-# how much short 
+- MINIMUM 
 
 ```{r}
 mapData_01 %>%
@@ -157,11 +159,10 @@ mapData_01 %>%
   mutate(shortEffect=round((long-short)/short*100,0))
 ```
 
-
-
 # Calculate climate change impacts on yield 
 
 - Average of all 20 years per grid-cell
+- Absolute and relative terms in relation to baseline
 
 ```{r}
 
@@ -194,7 +195,7 @@ df_rcp_only <- merge(df_rcp_fut,
 #summary(df_rcp_only)
 
 
-# calculates climate change impact on biomass
+# calculate climate change impact on biomass
 df_bio_diff <- df_rcp_only %>%
   ungroup() %>%
   mutate(diff_CC_abs = TotalBiomass - TotalBiomass_Base) %>%
@@ -211,7 +212,10 @@ df_rcp_base <- df_rcp_fut <- df_rcp_only <- NULL
 # Map of climate change effect on yields
 
 - Absolute values and percentage of baseline
-- Averaged also by the 6 GCMs
+- Averaged by the 6 GCMs
+
+
+Absolute
 
 ```{r}
 
@@ -226,6 +230,13 @@ summary(mapData_02)
 
 write.table(mapData_02, paste0(outFolder,"Map_02_YieldChange_Absolute.txt"),quote = FALSE, row.names = FALSE)
 
+
+
+```
+
+Relative
+
+```{r}
 # Percentage only
 mapData_03 <- df_bio_diff %>%
  #   mutate(Adaptation = factor(gsub(" ","_",Adaptation))) %>% # Not needed now with simple names
@@ -236,7 +247,6 @@ mapData_03 <- df_bio_diff %>%
 summary(mapData_03)
 
 write.table(mapData_03, paste0(outFolder,"Map_03_YieldChange_Percentage.txt"),quote = FALSE, row.names = FALSE)
-
 ```
 
 # Graph CC impact on biomass
@@ -279,7 +289,11 @@ av_y_diff %>%
 
 # get numbers of CC impact
 
+- maximum/minimum/median climate change effect
+- Relative values (% baseline)
+
 ```{r}
+
 av_y_diff %>%
   ungroup() %>%
   group_by(thisCrop,Adaptation,thisCultivar) %>%
